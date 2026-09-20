@@ -14,9 +14,13 @@
 #include <deque>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <sstream>
 #include <cstdlib>  // for exit
 #include <string>
+#include <stdexcept>
+
+#include "thirdparty/tomlplusplus/toml.hpp"
 
 #include "base/internal/external_port.h"
 #include "base/internal/stralloc.h"
@@ -268,6 +272,160 @@ const StrFlagEntry STR_FLAGS[] = {
      "(package_contrib); these are implicitly readable. Empty (the default) denies all writes."},
 };
 
+std::string toml_key(std::string key) {
+  for (auto& c : key) {
+    if (c == ' ') c = '_';
+    else if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+  }
+  return key;
+}
+
+std::string config_string(const toml::node& node, const std::string& key) {
+  auto value = node.value<std::string>();
+  if (!node.is_string() || !value || value->find('\0') != std::string::npos) {
+    throw std::runtime_error(key + ": expected a string without NUL bytes");
+  }
+  return *value;
+}
+
+int config_integer(const toml::node& node, const std::string& key, int low, int high,
+                   bool allow_boolean = false) {
+  std::optional<int64_t> value;
+  if (node.is_integer()) value = node.value<int64_t>();
+  else if (allow_boolean && node.is_boolean()) value = *node.value<bool>() ? 1 : 0;
+  if (!value || *value < low || *value > high) {
+    throw std::runtime_error(key + ": expected an integer in " + std::to_string(low) +
+                             ".." + std::to_string(high));
+  }
+  return static_cast<int>(*value);
+}
+
+std::string take_config_string(toml::table& table, const std::string& key,
+                               const std::string& fallback = "") {
+  auto* node = table.get(key);
+  if (!node) return fallback;
+  auto value = config_string(*node, key);
+  table.erase(key);
+  return value;
+}
+
+void reject_unknown_config(const toml::table& table, const std::string& prefix = "") {
+  if (!table.empty()) {
+    throw std::runtime_error("unknown configuration key: " + prefix +
+                             std::string(table.begin()->first.str()));
+  }
+}
+
+// Decode TOML straight into the existing runtime slots. Option names, required
+// settings, defaults and integer bounds come from the same tables as legacy rc.
+void read_toml_config(const char* filename) {
+  auto table = toml::parse_file(filename);
+  for (const auto& flag : INT_FLAGS) {
+    const auto key = toml_key(flag.key);
+    if (const auto* node = table.get(key)) {
+      CONFIG_INT(flag.pos) = config_integer(*node, key, flag.minValue, flag.maxValue, true);
+      table.erase(key);
+    }
+  }
+  for (const auto& flag : STR_FLAGS) {
+    const auto key = toml_key(flag.key);
+    const auto* node = table.get(key);
+    if (!node && flag.required == kMustHave) {
+      throw std::runtime_error("missing required configuration key: " + key);
+    }
+    std::string value;
+    if (node && key == "include_directories" && node->is_array()) {
+      for (const auto& element : *node->as_array()) {
+        auto path = config_string(element, key);
+        if (path.empty() || path.find(':') != std::string::npos) {
+          throw std::runtime_error(key + ": entries must be nonempty and cannot contain ':'");
+        }
+        if (!value.empty()) value += ':';
+        value += path;
+      }
+    } else if (node) {
+      value = config_string(*node, key);
+    }
+    if (flag.required == kMustHave && value.empty()) {
+      throw std::runtime_error("empty required configuration key: " + key);
+    }
+    CONFIG_STR(flag.pos) = alloc_cstring(value.c_str(), flag.tag.c_str());
+    table.erase(key);
+  }
+
+  auto include = take_config_string(table, "global_include_file");
+  if (!starts_with(include, "\"") && !starts_with(include, "<")) include = "\"" + include + "\"";
+  CONFIG_STR(__GLOBAL_INCLUDE_FILE__) = alloc_cstring(include.c_str(), "config file: gif");
+  auto failure = take_config_string(table, "default_fail_message", "What?");
+  if (failure.empty()) failure = "What?";
+  if (failure.back() != '\n') failure += '\n';
+  CONFIG_STR(__DEFAULT_FAIL_MESSAGE__) = alloc_cstring(failure.c_str(), "config file: dfm");
+  auto http_dir = take_config_string(table, "websocket_http_dir");
+  CONFIG_STR(__RC_WEBSOCKET_HTTP_DIR__) = alloc_cstring(http_dir.c_str(), "config file: whd");
+
+  for (auto& port : external_port) {
+    port.kind = PORT_TYPE_UNDEFINED;
+    port.fd = -1;
+    port.tls_cert.clear();
+    port.tls_key.clear();
+  }
+  if (const auto* node = table.get("port_number")) {
+    if (table.contains("ports")) throw std::runtime_error("use either port_number or ports, not both");
+    CONFIG_INT(__MUD_PORT__) = config_integer(*node, "port_number", 1, 65535);
+    external_port[0].kind = PORT_TYPE_TELNET;
+    external_port[0].port = CONFIG_INT(__MUD_PORT__);
+    table.erase("port_number");
+  }
+  if (auto* node = table.get("ports")) {
+    auto* ports = node->as_array();
+    if (!ports || ports->size() > std::size(external_port)) {
+      throw std::runtime_error("ports: expected an array of at most five tables");
+    }
+    size_t index = 0;
+    for (auto& element : *ports) {
+      auto* entry = element.as_table();
+      if (!entry) throw std::runtime_error("ports: expected tables");
+      auto kind = take_config_string(*entry, "type");
+      auto& port = external_port[index++];
+      for (int candidate = PORT_TYPE_TELNET; candidate <= PORT_TYPE_WEBSOCKET; ++candidate) {
+        if (kind == port_kind_name(candidate)) port.kind = static_cast<PORT_TYPE>(candidate);
+      }
+      if (port.kind == PORT_TYPE_UNDEFINED) throw std::runtime_error("ports.type: unknown type '" + kind + "'");
+      const auto* number = entry->get("port");
+      if (!number) throw std::runtime_error("ports.port: missing port number");
+      port.port = config_integer(*number, "ports.port", 1, 65535);
+      entry->erase("port");
+      const bool has_tls = entry->contains("tls_cert") || entry->contains("tls_key");
+      port.tls_cert = take_config_string(*entry, "tls_cert");
+      port.tls_key = take_config_string(*entry, "tls_key");
+      if (has_tls && (port.tls_cert.empty() || port.tls_key.empty())) {
+        throw std::runtime_error("ports: tls_cert and tls_key must be supplied together");
+      }
+      reject_unknown_config(*entry, "ports.");
+    }
+    table.erase("ports");
+  }
+#ifdef PACKAGE_EXTERNAL
+  for (auto& command : external_cmd) command = nullptr;
+  if (const auto* node = table.get("external_commands")) {
+    const auto* commands = node->as_array();
+    if (!commands || commands->size() > static_cast<size_t>(g_num_external_cmds)) {
+      throw std::runtime_error("external_commands: expected an array within the driver's command limit");
+    }
+    size_t index = 0;
+    for (const auto& command : *commands) {
+      auto value = config_string(command, "external_commands");
+      external_cmd[index++] = alloc_cstring(value.c_str(), "external cmd");
+    }
+    table.erase("external_commands");
+  }
+#endif
+  reject_unknown_config(table);
+  for (auto& value : config_str) {
+    if (!value) value = alloc_cstring("", "rc_obsolete");
+  }
+}
+
 bool scan_config_line(const char* fmt, void* dest, int required) {
   /* zero the destination.  It is either a pointer to an int or a char
    buffer, so this will work */
@@ -336,6 +494,22 @@ void read_config(const char* filename) {
   config_init();
 
   debug_message("Processing config file: %s\n", filename);
+
+  const std::string path(filename);
+  if (path.size() >= 5 && path.compare(path.size() - 5, 5, ".toml") == 0) {
+    try {
+      read_toml_config(filename);
+    } catch (const toml::parse_error& error) {
+      std::ostringstream message;
+      message << error;
+      fprintf(stderr, "Error in TOML config %s: %s\n", filename, message.str().c_str());
+      exit(EXIT_FAILURE);
+    } catch (const std::exception& error) {
+      fprintf(stderr, "Error in TOML config %s: %s\n", filename, error.what());
+      exit(EXIT_FAILURE);
+    }
+    return;
+  }
 
   std::ifstream f(filename);
   if (!f.is_open()) {

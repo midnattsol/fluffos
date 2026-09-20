@@ -86,6 +86,9 @@ if(${GTEST_FOUND})
   add_executable(strutils_tests test_strutils.cc)
   target_link_libraries(strutils_tests PRIVATE ${FLUFFOS_LINK} ${FLUFFOS_GTEST_LIBS})
 
+  add_executable(config_tests test_config.cc)
+  target_link_libraries(config_tests PRIVATE ${FLUFFOS_LINK} ${FLUFFOS_GTEST_LIBS})
+
   # Scratchpad-vs-malloc micro-benchmark: proves the compile arena beats
   # heap allocation for the compiler's allocation patterns. Timing-based,
   # so it is NOT registered with ctest -- run manually (RelWithDebInfo):
@@ -106,5 +109,5 @@ if(${GTEST_FOUND})
   gtest_discover_tests(compiler_tests DISCOVERY_TIMEOUT 60)
   gtest_discover_tests(lexer_tests DISCOVERY_TIMEOUT 60)
   gtest_discover_tests(strutils_tests DISCOVERY_TIMEOUT 60)
+  gtest_discover_tests(config_tests DISCOVERY_TIMEOUT 60)
 endif()
-

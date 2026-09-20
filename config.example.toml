@@ -1,0 +1,25 @@
+# Run from the directory containing your mudlib, or use an absolute root.
+name = "My MUD"
+mudlib_directory = "./lib"
+log_directory = "log"
+debug_log_file = "debug.log"
+
+# Adjust these virtual paths for your mudlib.
+master_file = "/secure/master.c"
+simulated_efun_file = "/secure/simul_efun.c"
+global_include_file = "<standard.h>"
+include_directories = ["/include"]
+
+maximum_evaluation_cost = 30000000
+maximum_array_size = 64000
+enable_gmcp = true
+
+[[ports]]
+type = "telnet"
+port = 3333
+
+# [[ports]]
+# type = "websocket"
+# port = 8080
+# tls_cert = "cert.pem"
+# tls_key = "key.pem"

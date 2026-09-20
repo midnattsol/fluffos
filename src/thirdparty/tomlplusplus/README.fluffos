@@ -1,0 +1,8 @@
+toml++ v3.4.0 (MIT)
+https://github.com/marzer/tomlplusplus
+Commit: 30172438cee64926dc41fdd9c11fb3ba5b2ba9de
+
+toml.hpp and LICENSE are copied byte-for-byte from the upstream release.
+The amalgamated header is self-contained; upstream build files, tests,
+documentation and modular headers are not needed by this integration.
+No local patches.
