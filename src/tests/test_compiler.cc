@@ -32,7 +32,7 @@
 #include "base/internal/stralloc.h"
 #include "compiler/internal/compiler.h"
 #include "compiler/internal/grammar_rules.h"
-#include "compiler/internal/grammar.autogen.h"
+#include <grammar.autogen.h>
 #include "compiler/internal/lexer.h"
 #include "compiler/internal/lexer_scan.h"
 #include "compiler/internal/lexer_utils.h"

@@ -29,7 +29,7 @@
 #include "base/internal/stralloc.h"
 #include "compiler/internal/compiler.h"
 #include "compiler/internal/grammar_rules.h"  // decl_t / func_block_t — must precede grammar.autogen.h
-#include "compiler/internal/grammar.autogen.h"
+#include <grammar.autogen.h>
 #include "compiler/internal/lexer.h"
 #include "compiler/internal/lexer_utils.h"
 #include "mainlib.h"
