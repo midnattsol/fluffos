@@ -150,6 +150,7 @@ void sig_usr2(int /*sig*/) {
  * Actually, doing all this stuff from a signal is probably illegal
  * -Beek
  */
+#ifdef _WIN32
 void attempt_shutdown(int sig) {
   const char* msg = "Unkonwn signal!";
   switch (sig) {
@@ -171,6 +172,7 @@ void attempt_shutdown(int sig) {
   // Attempt to call crash()
   fatal(msg);
 }
+#endif
 
 void init_locale() {
   setlocale(LC_ALL, "");
@@ -255,16 +257,15 @@ struct event_base* init_main(std::string_view config_file) {
 }
 
 void setup_signal_handlers() {
+#ifdef _WIN32
   signal(SIGTERM, attempt_shutdown);
   signal(SIGINT, attempt_shutdown);
+#endif
 
 #ifndef _WIN32
   // User signal
   signal(SIGUSR1, sig_usr1);
   signal(SIGUSR2, sig_usr2);
-
-  // shutdown
-  signal(SIGHUP, startshutdownMudOS);
 
   // for external events?
   signal(SIGCHLD, sig_cld);

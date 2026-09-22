@@ -15,6 +15,7 @@
 #include <event2/event.h>   // for event_add, etc
 #include <event2/thread.h>  // for thread support
 #include <chrono>
+#include <csignal>
 #include <set>
 
 #include "vm/vm.h"
@@ -77,6 +78,24 @@ void on_game_tick(evutil_socket_t /*fd*/, short /*what*/, void* arg) {
   auto t = gametick_timeval();
   event_add(ev, &t);
 }
+
+#ifndef _WIN32
+void on_shutdown_signal(evutil_socket_t signal, short /*what*/, void* arg) {
+  debug_message("Received signal %d, shutting down gracefully.\n", static_cast<int>(signal));
+  event_base_loopbreak(reinterpret_cast<struct event_base*>(arg));
+}
+
+struct event* add_shutdown_signal(struct event_base* base, int signal) {
+  auto* ev = evsignal_new(base, signal, on_shutdown_signal, base);
+  if (ev == nullptr || evsignal_add(ev, nullptr) != 0) {
+    if (ev != nullptr) {
+      event_free(ev);
+    }
+    fatal("Unable to register shutdown signal %d", signal);
+  }
+  return ev;
+}
+#endif
 
 void on_walltime_event(evutil_socket_t /*fd*/, short /*what*/, void* arg) {
   backend_dispose_tick_event(reinterpret_cast<TickEvent*>(arg));
@@ -195,6 +214,12 @@ void backend(struct event_base* base) {
   // heartbeats, callouts, and various cleaning function.
   g_ev_tick = evtimer_new(base, on_game_tick, &g_ev_tick);
 
+#ifndef _WIN32
+  auto* sigterm_event = add_shutdown_signal(base, SIGTERM);
+  auto* sigint_event = add_shutdown_signal(base, SIGINT);
+  auto* sighup_event = add_shutdown_signal(base, SIGHUP);
+#endif
+
   auto t = gametick_timeval();
   event_add(g_ev_tick, &t);
 
@@ -203,6 +228,11 @@ void backend(struct event_base* base) {
   } catch (...) {  // catch everything
     fatal("BUG: jumped out of event loop!");
   }
+#ifndef _WIN32
+  event_free(sigterm_event);
+  event_free(sigint_event);
+  event_free(sighup_event);
+#endif
   // We've reached here meaning we are in shutdown sequence.
-  shutdownMudOS(-1);
+  shutdownMudOS(0);
 } /* backend() */
