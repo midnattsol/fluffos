@@ -12,11 +12,13 @@
     "./docusaurus-plugin": "./docusaurus-plugin.cjs",
     "./highlight": "./highlight.mjs",
     "./format": "./format.mjs",
+    "./audit": "./audit.mjs",
     "./tokenizer": "./tokenizer.mjs"
   },
   "scripts": {
     "test": "node test.mjs",
     "format": "bash ../../testsuite/format.sh",
-    "check": "bash ../../testsuite/format.sh --check"
+    "check": "bash ../../testsuite/format.sh --check",
+    "audit": "node bin/audit-identifiers.mjs"
   }
 }

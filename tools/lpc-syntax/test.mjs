@@ -5,6 +5,7 @@ import { tokenize, grammar } from './tokenizer.mjs';
 import { highlightLPC } from './highlight.mjs';
 import { formatLPC, tokenSequence, DEFAULT_PRINT_WIDTH, DEFAULT_INDENT_SIZE } from './format.mjs';
 import { lintLPC } from './lint.mjs';
+import { auditIdentifiers } from './audit.mjs';
 import { readFileSync as readF, readdirSync } from 'node:fs';
 import { fileURLToPath as f2p } from 'node:url';
 import { dirname as dirN, join as joinP } from 'node:path';
@@ -1633,6 +1634,36 @@ check('tmLanguage: function-call excludes reserved words (no "if (" misfire as e
         const re = new RegExp(tml.repository['function-call'].match);
         return !re.test('if (') && !re.test('while (') && !re.test('new (') &&
                !re.test('catch(') && re.test('foo (') && re.test('bar(');
+       })());
+
+// --- identifier audit --------------------------------------------------------
+const auditRules = (src) => auditIdentifiers(src).map((finding) =>
+  `${finding.name}:${finding.kind}:${finding.rule}:${finding.confidence}`);
+check('audit: Spanish and single-letter declarations are classified',
+      (() => {
+        const rules = auditRules('private int contador;\nvoid f(int i) { string nombre; i = 1; }\n');
+        return rules.includes('contador:global:spanish-identifier:high') &&
+               rules.includes('i:argument:single-letter-name:medium') &&
+               rules.includes('nombre:local:spanish-identifier:high');
+      })());
+check('audit: dead declarations are confidence-scoped',
+      (() => {
+        const rules = auditRules('private int helper;\nint public_api() { int dead; return 1; }\n');
+        return rules.includes('helper:global:possibly-unused-private:medium') &&
+               rules.includes('public_api:function:possibly-unused-public:low') &&
+               rules.includes('dead:local:unused-local-candidate:high');
+      })());
+check('audit: strings produce dynamic-reference rather than dead-code claims',
+      auditRules('private void callback() {}\nvoid setup() { add_action("callback", "x"); }\n')
+        .includes('callback:function:dynamic-reference:unknown'));
+check('audit: function prototypes are not dead-code candidates',
+      !auditIdentifiers('private void callback(int value);\n')
+        .some((finding) => finding.rule.includes('unused')));
+check('audit: non-ASCII code is reported but strings and comments are ignored',
+      (() => {
+        const findings = auditIdentifiers('int daño; // también\nstring s = "español";\n');
+        const invalid = findings.filter((finding) => finding.rule === 'non-ascii-code');
+        return invalid.length === 1 && invalid[0].name === 'daño';
       })());
 check('tmLanguage: operators longest-match ordered',
       (() => { const parts = tml.repository.operators.match.split('|');
