@@ -13,8 +13,8 @@ if(${PACKAGE_DB})
     target_compile_definitions(package_db PUBLIC "DEFAULT_DB=${PACKAGE_DB_DEFAULT_DB}")
 
     if(NOT "${PACKAGE_DB_MYSQL}" STREQUAL "")
-        if ("${PACKAGE_DB_MYSQL}" STREQUAL "{PACKAGE_DB_SQLITE}" OR
-            "${PACKAGE_DB_MYSQL}" STREQUAL "{PACKAGE_DB_POSTGRESQL}")
+        if ("${PACKAGE_DB_MYSQL}" STREQUAL "${PACKAGE_DB_SQLITE}" OR
+            "${PACKAGE_DB_MYSQL}" STREQUAL "${PACKAGE_DB_POSTGRESQL}")
           message(FATAL "Conflicting DB type!")
         endif()
 
@@ -34,8 +34,8 @@ if(${PACKAGE_DB})
     endif()
 
     if(NOT "${PACKAGE_DB_SQLITE}" STREQUAL "")
-      if ("${PACKAGE_DB_SQLITE}" STREQUAL "{PACKAGE_DB_MYSQL}" OR
-              "${PACKAGE_DB_SQLITE}" STREQUAL "{PACKAGE_DB_POSTGRESQL}")
+      if ("${PACKAGE_DB_SQLITE}" STREQUAL "${PACKAGE_DB_MYSQL}" OR
+              "${PACKAGE_DB_SQLITE}" STREQUAL "${PACKAGE_DB_POSTGRESQL}")
         message(FATAL "Conflicting DB type!")
       endif()
 
@@ -48,8 +48,8 @@ if(${PACKAGE_DB})
     endif()
 
     if(NOT "${PACKAGE_DB_POSTGRESQL}" STREQUAL "")
-      if ("${PACKAGE_DB_POSTGRESQL}" STREQUAL "{PACKAGE_DB_MYSQL}" OR
-              "${PACKAGE_DB_POSTGRESQL}" STREQUAL "{PACKAGE_DB_SQLITE}")
+      if ("${PACKAGE_DB_POSTGRESQL}" STREQUAL "${PACKAGE_DB_MYSQL}" OR
+              "${PACKAGE_DB_POSTGRESQL}" STREQUAL "${PACKAGE_DB_SQLITE}")
         message(FATAL "Conflicting DB type!")
       endif()
 
