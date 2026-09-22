@@ -70,6 +70,7 @@ void yyerror(void *yyscanner, const char *msg);
 /* Literals */
 %token <string> L_STRING
 %token <number> L_NUMBER
+%token <number> L_SCALAR_LITERAL
 %token <real>   L_REAL
 
 /* Template literal fragments: `head${`, `}middle${`, `}tail` */
@@ -124,6 +125,7 @@ void yyerror(void *yyscanner, const char *msg);
 
 /* Built-in special forms */
 %token L_SSCANF L_CATCH
+%token L_TRY
 
 /* async/await (issue #1319): `await expr` and `acatch(expr)`. The `async`
  * function modifier rides L_TYPE_MODIFIER (FUNC_ASYNC in yylval). */
@@ -218,6 +220,8 @@ void yyerror(void *yyscanner, const char *msg);
 %type <node> optional_default_arg_value
 %type <node> number real string string_like template_literal template_parts
 %type <node> expr comma_expr for_expr sscanf catch acatch
+%type <node> try_body
+%type <number> try_context_start
 %type <node> parse_command time_expression opt_arg_list arg_list opt_pair_list
 %type <node> pair_list assoc_pair primary_expr lvalue function_call lvalue_list
 %type <node> new_local_def statement stmt_while stmt_cond stmt_do stmt_switch case
@@ -343,6 +347,27 @@ statement:
   | ';'                  { $$ = 0; }
   | L_BREAK    ';'       { $$ = rule_statement_break(); }
   | L_CONTINUE ';'       { $$ = rule_statement_continue(); }
+  | try_body L_CATCH '(' lvalue ')' block {
+      parse_node_t* assignment;
+      rule_expr_assign(&assignment, $lvalue, F_ASSIGN, $try_body);
+      CREATE_IF($$, assignment, rule_statement_compound_stmt($block), nullptr);
+    }
+;
+
+try_body:
+  L_TRY try_context_start expr_or_block {
+    if (compiling_async_function && !current_function_context)
+      rule_acatch(&$$, $expr_or_block, $try_context_start);
+    else
+      rule_catch(&$$, $expr_or_block, $try_context_start);
+  }
+;
+
+try_context_start:
+  %empty {
+    $$ = compiling_async_function && !current_function_context ?
+         rule_acatch_context_open() : rule_special_context_open();
+  }
 ;
 
 
@@ -1154,6 +1179,11 @@ string_const:
 
 number:
   L_NUMBER  { rule_number(&$$, $L_NUMBER); }
+  | L_SCALAR_LITERAL {
+      CREATE_OPCODE($$, $L_SCALAR_LITERAL == 2 ? F_PUSH_NULL :
+                        $L_SCALAR_LITERAL ? F_PUSH_TRUE : F_PUSH_FALSE,
+                        $L_SCALAR_LITERAL == 2 ? TYPE_NULL : TYPE_BOOLEAN);
+    }
 ;
 
 real:

@@ -1,0 +1,40 @@
+#pragma strict_types
+#pragma modern_types
+#include <tests.h>
+
+private bool enabled = true;
+private null_value absent = null;
+
+bool returns_bool() { return false; }
+error_value returns_error() { return make_error("example.failure", "Example"); }
+
+void do_tests() {
+  bool disabled = false;
+  error_value failure = returns_error();
+  mixed number = 0;
+  mixed caught;
+  int handled = 0;
+  ASSERT(enabled);
+  ASSERT(!disabled);
+  ASSERT(!returns_bool());
+  ASSERT(json_nullp(absent));
+  ASSERT(errorp(failure));
+  ASSERT(disabled != number);
+  ASSERT(absent != number);
+  ASSERT_EQ("[true,false,null]", efun::json_encode(({ true, false, null })));
+  ASSERT(json_nullp(catch(1 + 1)));
+  caught = catch(throw(0));
+  ASSERT(errorp(caught));
+  ASSERT_EQ(0, error_info(caught)["context"]["value"]);
+  try {
+    throw(make_error("example.caught", "Caught"));
+  } catch (caught) {
+    ASSERT(errorp(caught));
+    handled++;
+  }
+  ASSERT_EQ(1, handled);
+  try { handled++; } catch (caught) { handled = -100; }
+  ASSERT_EQ(2, handled);
+  ASSERT_EQ(0, sizeof(filter(([ "a": 1 ]), (: false :))));
+  ASSERT_EQ(1, sizeof(filter(([ "a": 1 ]), (: true :))));
+}

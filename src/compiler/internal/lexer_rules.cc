@@ -13,7 +13,7 @@
 #include "compiler/internal/compiler.h"
 #include "compiler/internal/lexer.h"
 #include "compiler/internal/grammar_rules.h"
-#include "compiler/internal/grammar.autogen.h"
+#include <grammar.autogen.h>
 #include "base/internal/scratchpad.h"
 
 // See lexer.l's STR_CHECK_OVERFLOW comment: this cap roughly matches the old

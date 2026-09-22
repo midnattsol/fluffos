@@ -162,7 +162,12 @@ statement = commaExpr, ";"
             | block
             | ";"
             | LBreak, ";"
-            | LContinue, ";" ;
+            | LContinue, ";"
+            | tryBody, LCatch, "(", lvalue, ")", block ;
+
+tryBody = LTry, tryContextStart, exprOrBlock ;
+
+tryContextStart = "" ;
 
 stmtReturn = LReturn, ";"
              | LReturn, commaExpr, ";" ;
@@ -451,7 +456,8 @@ stringConst = stringLiteral
               | "(", stringConst, ")"
               | stringConst, "+", stringConst ;
 
-number = LNumber ;
+number = LNumber
+         | LScalarLiteral ;
 
 real = LReal ;
 

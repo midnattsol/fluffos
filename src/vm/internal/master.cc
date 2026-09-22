@@ -28,7 +28,7 @@ int master_approved(svalue_t* v, const char* apply_name) {
         apply_name);
     return 0;
   }
-  return v->type != T_NUMBER || v->u.number != 0;
+  return v->type != T_ERROR && !IS_ZERO(v);
 }
 
 struct object_t* master_ob = nullptr;

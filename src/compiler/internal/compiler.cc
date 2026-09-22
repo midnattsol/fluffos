@@ -18,7 +18,7 @@
 #include "lexer.h"
 #include "compiler/internal/lexer_utils.h"
 #include "compiler/internal/grammar_rules.h"
-#include "grammar.autogen.h"
+#include <grammar.autogen.h>
 #include "base/internal/strutils.h"  // u8_string_is_ascii_cached
 #include "base/internal/scratchpad.h"
 #include "symbol.h"
@@ -73,9 +73,9 @@ static void show_overload_warnings(void);
 #define CT(x) (1 << (x))
 #define CT_SIMPLE(x) (CT(TYPE_ANY) | CT(x))
 
-short compatible[11] = {
+short compatible[14] = {
     /* UNKNOWN */ 0,
-    /* ANY */ 0x7ff,
+    /* ANY */ 0x3fff,
     /* NOVALUE to*/ CT_SIMPLE(TYPE_NOVALUE) | CT(TYPE_VOID) | CT(TYPE_NUMBER),
     /* VOID to*/ CT_SIMPLE(TYPE_VOID) | CT(TYPE_NUMBER),
     /* NUMBER to*/ CT_SIMPLE(TYPE_NUMBER) | CT(TYPE_REAL),
@@ -85,11 +85,14 @@ short compatible[11] = {
     /* FUNCTION */ CT_SIMPLE(TYPE_FUNCTION),
     /* REAL */ CT_SIMPLE(TYPE_REAL) | CT(TYPE_NUMBER),
     /* BUFFER */ CT_SIMPLE(TYPE_BUFFER),
+    /* BOOLEAN */ CT_SIMPLE(TYPE_BOOLEAN),
+    /* NULL */ CT_SIMPLE(TYPE_NULL),
+    /* ERROR */ CT_SIMPLE(TYPE_ERROR),
 };
 
-short is_type[11] = {
+short is_type[14] = {
     /* UNKNOWN */ 0,
-    /* ANY */ 0x7ff,
+    /* ANY */ 0x3fff,
     /* NOVALUE */ CT_SIMPLE(TYPE_NOVALUE) | CT(TYPE_VOID),
     /* VOID */ CT_SIMPLE(TYPE_VOID) | CT(TYPE_NOVALUE),
     /* NUMBER */ CT_SIMPLE(TYPE_NUMBER),
@@ -99,6 +102,9 @@ short is_type[11] = {
     /* FUNCTION */ CT_SIMPLE(TYPE_FUNCTION),
     /* REAL */ CT_SIMPLE(TYPE_REAL),
     /* BUFFER */ CT_SIMPLE(TYPE_BUFFER),
+    /* BOOLEAN */ CT_SIMPLE(TYPE_BOOLEAN),
+    /* NULL */ CT_SIMPLE(TYPE_NULL),
+    /* ERROR */ CT_SIMPLE(TYPE_ERROR),
 };
 
 mem_block_t mem_block[NUMAREAS];
@@ -1301,7 +1307,7 @@ int promise_of_type(int t) {
   return r | TYPE_MOD_PROMISE;
 }
 
-unsigned short promise_value_subtype(int t) {
+uint32_t promise_value_subtype(int t) {
   if (!IS_PROMISE(t)) {
     return 0;
   }
@@ -1314,13 +1320,12 @@ unsigned short promise_value_subtype(int t) {
   int const rt = convert_type(promise_payload_type(t));
 
   /* T_ANY ("mixed") and T_INVALID (void/unknown) carry no constraint, which
-   * is exactly what an absent tag means. T_ANY also would not fit: it spans
-   * T_PROMISE at 0x10000, above subtype's 16 bits. Every concrete mask does
-   * fit, and a promise payload can never itself be a promise. */
+   * is exactly what an absent tag means. Concrete runtime masks, including
+   * modern scalar/error tags, fit in the 32-bit subtype field. */
   if (rt == T_ANY || rt == T_INVALID) {
     return 0;
   }
-  return static_cast<unsigned short>(rt);
+  return static_cast<uint32_t>(rt);
 }
 
 /*
@@ -1418,7 +1423,7 @@ int compatible_types(int t1, int t2) {
   } else if (t2 & TYPE_MOD_ARRAY) {
     return 0;
   }
-  if (t1 > TYPE_BUFFER || t1 < 0) {
+  if (t1 > TYPE_ERROR || t1 < 0) {
     fatal("compiler.c: unknown type in compatible_types()");
   }
   return compatible[t1] & (1 << t2);
@@ -2048,7 +2053,7 @@ int decl_fix(int x) {
 
 const char* compiler_type_names[] = {"unknown", "mixed",   "void",     "void",  "int",
                                      "string",  "object",  "mapping",  "function", "float",
-                                     "buffer"};
+                                     "buffer", "bool", "null_value", "error_value"};
 
 /* This routine has the semantics of strput(); see comments in simulate.c */
 

@@ -243,6 +243,7 @@ void mark_svalue(svalue_t* sv) {
     case T_CLASS:
       sv->u.arr->extra_ref++;
       break;
+    case T_ERROR:
     case T_MAPPING:
       sv->u.map->extra_ref++;
       break;
@@ -344,6 +345,7 @@ static void md_print_array(array_t* vec) {
       case T_PROMISE:
         outbuf_add(&out, "<promise>");
         break;
+      case T_ERROR:
       case T_MAPPING:
         outbuf_add(&out, "<mapping>");
         break;
@@ -1214,6 +1216,7 @@ int md_scan_orphaned_cycles(int collect, outbuffer_t* ob) {
       case T_ARRAY:
       case T_CLASS:
         return reinterpret_cast<void*>(sv->u.arr);
+      case T_ERROR:
       case T_MAPPING:
         return reinterpret_cast<void*>(sv->u.map);
       case T_FUNCTION:

@@ -45,9 +45,10 @@ union u {
 struct svalue_t {
   /* 32-bit: the 16 low type bits are fully allocated (see the T_* defines
    * below), so new value types must use bits at 0x10000 and above. Layout is
-   * unchanged on 64-bit targets: 4 + 2 + 2 bytes padding + 8-byte union. */
+   * unchanged on 64-bit targets: 4-byte type + 4-byte subtype + 8-byte union.
+   * Subtypes must also hold runtime masks for promise<bool/error_value>. */
   uint32_t type;
-  unsigned short subtype;
+  uint32_t subtype;
   union u u;
 };
 
@@ -116,6 +117,9 @@ static inline svalue_t* lvalue_target(svalue_t* slot) {
 /* The 16 low bits are fully allocated; new value types start at 0x10000
  * (svalue_t::type is 32-bit). */
 #define T_PROMISE 0x10000u
+#define T_BOOLEAN 0x20000u
+#define T_NULL 0x40000u
+#define T_ERROR 0x80000u
 
 /*
  * Compile-time type words. These are a separate namespace from the runtime
@@ -152,8 +156,8 @@ typedef uint32_t lpc_type_t;
 #define TYPE_MOD_PROMISE_VALUE_ARRAY 0x20000u
 
 #define T_REFED \
-  (T_ARRAY | T_OBJECT | T_MAPPING | T_FUNCTION | T_BUFFER | T_CLASS | T_REF | T_PROMISE)
-#define T_ANY (T_REFED | T_STRING | T_NUMBER | T_REAL)
+  (T_ARRAY | T_OBJECT | T_MAPPING | T_FUNCTION | T_BUFFER | T_CLASS | T_REF | T_PROMISE | T_ERROR)
+#define T_ANY (T_REFED | T_STRING | T_NUMBER | T_REAL | T_BOOLEAN | T_NULL)
 
 /* values for subtype field of svalue struct */
 #define STRING_COUNTED 0x1u /* has a length an ref count */

@@ -929,6 +929,16 @@ void f_malloc_status() {
 }
 #endif
 
+#ifdef F_MAPPING_HAS
+void f_mapping_has() {
+  // Check the lookup sentinel, not the stored value: zero and even an
+  // explicitly stored undefined value are both present keys.
+  const bool present = find_in_mapping((sp - 1)->u.map, *sp) != &const0u;
+  pop_n_elems(2);
+  push_number(present);
+}
+#endif
+
 #ifdef F_MAP_DELETE
 void f_map_delete() {
   mapping_delete((sp - 1)->u.map, sp);

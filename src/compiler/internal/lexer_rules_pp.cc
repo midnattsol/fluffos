@@ -15,7 +15,7 @@
 // grammar_rules.h must precede grammar.autogen.h (decl_t/func_block_t);
 // needed for the token ids and YYSTYPE the #if token evaluator consumes.
 #include "compiler/internal/grammar_rules.h"
-#include "compiler/internal/grammar.autogen.h"
+#include <grammar.autogen.h>
 
 ScratchString normalize_filename(const char* filename) {
   if (!filename) return ScratchString("/unknown");

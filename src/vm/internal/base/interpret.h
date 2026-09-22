@@ -30,6 +30,7 @@
  * FRAME_CATCH frame, marks an acatch() region marker (no C++ recursion,
  * unlike do_catch()). */
 #define FRAME_ASYNC 32
+#define FRAME_STRUCTURED_CATCH 64
 struct defer_list {
   struct defer_list* next;
   svalue_t func;
@@ -96,7 +97,8 @@ struct function_lookup_info_t {
   int index;
 };
 
-#define IS_ZERO(x) (!(x) || (((x)->type == T_NUMBER) && ((x)->u.number == 0)))
+#define IS_ZERO(x) (!(x) || (x)->type == T_NULL || \
+                   ((((x)->type == T_NUMBER) || ((x)->type == T_BOOLEAN)) && ((x)->u.number == 0)))
 
 /* Did an LPC function the DRIVER called answer yes to a yes/no question?
  *
@@ -109,7 +111,7 @@ struct function_lookup_info_t {
  * inventory_accessible(), ...), NOT for an ordinary LPC callback whose result
  * is used as a truth value -- there a promise is true, exactly as it is to
  * the equivalent hand-written `if (cb(x))`. */
-#define APPLY_SAYS_YES(x) (!IS_ZERO(x) && (x)->type != T_PROMISE)
+#define APPLY_SAYS_YES(x) (!IS_ZERO(x) && (x)->type != T_PROMISE && (x)->type != T_ERROR)
 #define IS_UNDEFINED(x) \
   (!(x) || (((x)->type == T_NUMBER) && ((x)->subtype == T_UNDEFINED) && ((x)->u.number == 0)))
 

@@ -5,7 +5,7 @@
 #include "compiler/internal/compiler.h"
 #include "compiler/internal/lexer.h"
 #include "compiler/internal/grammar_rules.h"
-#include "compiler/internal/grammar.autogen.h"
+#include <grammar.autogen.h>
 #include "compiler/internal/lexer_rules_pp.h"
 #include "base/internal/scratchpad.h"
 

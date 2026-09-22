@@ -211,6 +211,7 @@ void int_free_svalue(svalue_t* v)
             FREE((char*)v->u.buf);
           }
           break;
+        case T_ERROR:
         case T_MAPPING:
           free_compound(v->u.map, T_MAPPING);
           break;
@@ -260,6 +261,10 @@ json svalue_to_json_summary(const svalue_t* obj, int depth) {
     return "truncated";
   }
   switch ((obj->type & ~T_FREED)) {
+    case T_BOOLEAN:
+      return obj->u.number != 0;
+    case T_NULL:
+      return nullptr;
     case T_INVALID:
       return "T_INVALID";
     case T_LVALUE:

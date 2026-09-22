@@ -693,6 +693,8 @@ int sameval(svalue_t* arg1, svalue_t* arg2) {
   DEBUG_CHECK(!arg1 || !arg2, "Null pointer passed to sameval.\n");
 
   switch (arg1->type | arg2->type) {
+    case T_BOOLEAN:
+    case T_NULL:
     case T_NUMBER:
       return arg1->u.number == arg2->u.number;
     case T_ARRAY:
@@ -705,6 +707,7 @@ int sameval(svalue_t* arg1, svalue_t* arg2) {
       return !strcmp(arg1->u.string, arg2->u.string);
     case T_OBJECT:
       return arg1->u.ob == arg2->u.ob;
+    case T_ERROR:
     case T_MAPPING:
       return arg1->u.map == arg2->u.map;
     case T_FUNCTION:
@@ -2140,7 +2143,7 @@ void f_objects(void) {
         push_refed_array(&the_null_array);
         return;
       }
-      if (v->type == T_NUMBER && !v->u.number) {
+      if (IS_ZERO(v)) {
         list[i] = nullptr;
       }
     }

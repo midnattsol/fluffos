@@ -97,6 +97,8 @@ std::vector<BYTE> base64_decode(std::string const& encoded_string) {
 
 std::string type_2_name(int type) {
   switch (type) {
+    case T_BOOLEAN: return "bool";
+    case T_NULL: return "null";
     case T_STRING:
       return "string";
     case T_NUMBER:
@@ -119,6 +121,8 @@ std::string type_2_name(int type) {
 }
 
 int name_2_type(const std::string name) {
+  if (name == "bool") return T_BOOLEAN;
+  if (name == "null") return T_NULL;
   if (name == "string") {
     return T_STRING;
   } else if (name == "number") {
@@ -144,6 +148,12 @@ nlohmann::json svalue_to_json_recurse(const svalue_t* sv) {
   nlohmann::json j;
   j["type"] = type_2_name(sv->type);
   switch (sv->type) {
+    case T_BOOLEAN:
+      j["value"] = sv->u.number != 0;
+      break;
+    case T_NULL:
+      j["value"] = nullptr;
+      break;
     case T_NUMBER:
       j["value"] = sv->u.number;
       break;
@@ -168,7 +178,7 @@ nlohmann::json svalue_to_json_recurse(const svalue_t* sv) {
       break;
     case T_MAPPING: {
       nlohmann::json items = nlohmann::json::array();
-      for (int i = 0; i < sv->u.map->table_size; i++) {
+      for (int i = 0; i <= sv->u.map->table_size; i++) {
         for (auto* node = sv->u.map->table[i]; node; node = node->next) {
           nlohmann::json item;
           item["key"] = svalue_to_json_recurse(&node->values[0]);
@@ -195,6 +205,14 @@ svalue_t svalue_from_json_recurse(nlohmann::json j) {
   sv.type = name_2_type(j["type"]);
   auto value = j["value"];
   switch (sv.type) {
+    case T_BOOLEAN:
+      if (!value.is_boolean()) throw std::runtime_error("Invalid boolean value");
+      sv.u.number = value.get<bool>();
+      break;
+    case T_NULL:
+      if (!value.is_null()) throw std::runtime_error("Invalid null value");
+      sv.u.number = 0;
+      break;
     case T_NUMBER:
       if (!value.is_number_integer()) {
         throw std::runtime_error("Invalid number value: " + value.dump());

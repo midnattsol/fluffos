@@ -1,0 +1,54 @@
+#include <tests.h>
+
+void do_tests() {
+  mapping data = efun::json_decode_object("{\"enabled\":false,\"nothing\":null,\"number\":0,\"yes\":true}");
+  mixed no = data["enabled"];
+  mixed yes = data["yes"];
+  mixed nil = data["nothing"];
+  mapping separate = ([ no: "false", nil: "null", 0: "zero" ]);
+  int count;
+  ASSERT(booleanp(no));
+  ASSERT(booleanp(yes));
+  ASSERT(json_nullp(nil));
+  ASSERT(!intp(no));
+  ASSERT(!undefinedp(nil));
+  ASSERT(no != 0);
+  ASSERT(nil != 0);
+  ASSERT(no != nil);
+  ASSERT(no == efun::json_decode("false"));
+  ASSERT(!(no != efun::json_decode("false")));
+  ASSERT(!no);
+  ASSERT(!nil);
+  ASSERT(yes);
+  if (no) count++;
+  if (nil) count++;
+  if (yes) count++;
+  ASSERT_EQ(1, count);
+  ASSERT_EQ("false", efun::json_encode(no));
+  ASSERT_EQ("null", efun::json_encode(nil));
+  ASSERT_EQ("true", efun::json_encode(yes));
+  ASSERT_EQ("0", efun::json_encode(0));
+  ASSERT_EQ("bool", typeof(no));
+  ASSERT_EQ("null", typeof(nil));
+  ASSERT_EQ("false", sprintf("%O", no));
+  ASSERT_EQ(3, sizeof(separate));
+  ASSERT_EQ("null", separate[nil]);
+  ASSERT_EQ("false", separate[no]);
+  ASSERT_EQ(efun::json_encode(data), efun::json_encode(restore_variable(save_variable(data))));
+  ASSERT_EQ(efun::json_encode(data), efun::json_encode(copy(data)));
+  ASSERT_EQ("[true,false,null]", efun::json_encode(restore_variable(save_variable(({ yes, no, nil })))));
+  ASSERT_EQ("true", efun::json_encode(restore_variable(save_variable(yes))));
+  ASSERT_EQ("null", efun::json_encode(restore_variable(save_variable(nil))));
+  ASSERT_EQ("nieve", efun::json_decode("\"nieve\""));
+  ASSERT_EQ("árbol", efun::json_decode("\"árbol\""));
+  ASSERT_EQ(2, sizeof(efun::json_decode("[1,2]")));
+  ASSERT(catch(efun::json_decode_object("[]")));
+  ASSERT(catch(efun::json_decode("{\"x\":1,\"x\":2}")));
+  ASSERT(catch(efun::json_decode("{broken}")));
+  ASSERT(catch(efun::json_encode(this_object())));
+  ASSERT(catch(efun::json_encode(([ 1: "bad" ]))));
+  ASSERT(catch(efun::json_decode("\"\\u0000\"")));
+  ASSERT(catch(efun::json_decode(to_buffer(({ 123, 125, 0, 120 })))));
+  ASSERT(catch(efun::json_decode("9223372036854775808")));
+  ASSERT(catch(efun::json_decode("184467440737095516160000")));
+}

@@ -66,6 +66,7 @@ parse_node_t* rule_expr_or_block_expr(parse_node_t* expr) { return insert_pop_va
 
 void rule_catch(parse_node_t** result, parse_node_t* expr_or_block, LPC_INT saved_context) {
   CREATE_CATCH(*result, expr_or_block);
+  (*result)->v.number = (pragmas & PRAGMA_MODERN_TYPES) ? F_CATCH_ERROR : F_CATCH;
   context = SAVED_CONTEXT_FLAGS(saved_context);
   current_type = SAVED_CONTEXT_TYPE(saved_context);
 }
@@ -84,6 +85,7 @@ void rule_acatch(parse_node_t** result, parse_node_t* expr_or_block, LPC_INT sav
     yyerror("acatch is not allowed inside catch or time_expression");
   }
   CREATE_ACATCH(*result, expr_or_block);
+  (*result)->v.number = (pragmas & PRAGMA_MODERN_TYPES) ? F_ACATCH_ERROR : F_ACATCH;
   context = SAVED_CONTEXT_FLAGS(saved_context);
   current_type = SAVED_CONTEXT_TYPE(saved_context);
 }

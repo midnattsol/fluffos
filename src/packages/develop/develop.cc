@@ -122,6 +122,7 @@ void f_refs() {
   int r;
 
   switch (sp->type) {
+    case T_ERROR:
     case T_MAPPING:
       r = sp->u.map->ref;
       break;

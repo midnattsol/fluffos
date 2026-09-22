@@ -103,6 +103,13 @@ void f_eq() {
   int i;
 
   switch (sp->type | (sp - 1)->type) {
+    case T_BOOLEAN:
+    case T_NULL: {
+      const bool equal = sp->u.number == (sp - 1)->u.number;
+      --sp;
+      put_number(equal);
+      return;
+    }
     case T_NUMBER: {
       --sp;
       sp->u.number = sp->u.number == (sp + 1)->u.number;
@@ -143,6 +150,7 @@ void f_eq() {
       break;
     }
 
+    case T_ERROR:
     case T_MAPPING: {
       i = (sp - 1)->u.map == sp->u.map;
       free_mapping((sp--)->u.map);
@@ -469,6 +477,13 @@ void f_ne() {
   int i;
 
   switch (sp->type | (sp - 1)->type) {
+    case T_BOOLEAN:
+    case T_NULL: {
+      const bool different = sp->u.number != (sp - 1)->u.number;
+      --sp;
+      put_number(different);
+      return;
+    }
     case T_NUMBER: {
       --sp;
       sp->u.number = sp->u.number != (sp + 1)->u.number;
@@ -509,6 +524,7 @@ void f_ne() {
       break;
     }
 
+    case T_ERROR:
     case T_MAPPING: {
       i = (sp - 1)->u.map != sp->u.map;
       free_mapping((sp--)->u.map);

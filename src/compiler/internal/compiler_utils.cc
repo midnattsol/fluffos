@@ -7,7 +7,7 @@
 #include <fmt/ranges.h>
 
 #include "compiler/internal/grammar_rules.h"
-#include "grammar.autogen.h"
+#include <grammar.autogen.h>
 #include "efuns.autogen.h"
 #include "lexer.h"
 #include "compiler.h"
@@ -195,6 +195,11 @@ void init_instrs() {
   add_instr_name("+", "c_add();\n", F_ADD, T_ANY);
   add_instr_name("!=", "f_ne();\n", F_NE, T_NUMBER);
   add_instr_name("catch", 0, F_CATCH, T_ANY);
+  add_instr_name("catch_error", 0, F_CATCH_ERROR, T_ANY);
+  add_instr_name("acatch_error", 0, F_ACATCH_ERROR, T_ANY);
+  add_instr_name("true", 0, F_PUSH_TRUE, T_BOOLEAN);
+  add_instr_name("false", 0, F_PUSH_FALSE, T_BOOLEAN);
+  add_instr_name("null", 0, F_PUSH_NULL, T_NULL);
   add_instr_name("end_catch", 0, F_END_CATCH, -1);
   add_instr_name("await", 0, F_AWAIT, T_ANY);
   add_instr_name("acatch", 0, F_ACATCH, T_ANY);

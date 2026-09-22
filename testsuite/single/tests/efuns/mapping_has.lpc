@@ -1,0 +1,24 @@
+#include <tests.h>
+
+void do_tests() {
+  mapping source = ([ "zero": 0, "empty": "", "array": ({}), 42: "number" ]);
+  mapping empty = ([]);
+  mixed missing = empty["missing"];
+  mixed bad_argument = "not a mapping";
+
+  ASSERT_EQ(1, mapping_has(source, "zero"));
+  ASSERT_EQ(1, mapping_has(source, "empty"));
+  ASSERT_EQ(1, mapping_has(source, "array"));
+  ASSERT_EQ(1, mapping_has(source, 42));
+  ASSERT_EQ(0, mapping_has(source, "42"));
+  ASSERT_EQ(0, mapping_has(source, "missing"));
+  ASSERT_EQ(0, mapping_has(empty, "missing"));
+  ASSERT_EQ(0, sizeof(empty));
+
+  source["undefined"] = missing;
+  ASSERT_EQ(1, mapping_has(source, "undefined"));
+  map_delete(source, "zero");
+  ASSERT_EQ(0, mapping_has(source, "zero"));
+
+  ASSERT(catch(mapping_has(bad_argument, "key")));
+}

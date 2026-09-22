@@ -201,12 +201,13 @@ TOKEN_SPEC = {
     # literals / names
     "L_STRING": ("string", None), "L_NUMBER": ("number", None),
     "L_REAL": ("number", None),
+    "L_SCALAR_LITERAL": ("keyword", ["true", "false", "null"]),
     "L_TEMPLATE_HEAD": ("string", None), "L_TEMPLATE_MIDDLE": ("string", None),
     "L_TEMPLATE_TAIL": ("string", None),
     "L_IDENTIFIER": ("identifier", None), "L_DEFINED_NAME": ("identifier", None),
     "L_PARAMETER": ("identifier", None),
     # keyword families (spellings from lexer_utils.cc reswords[])
-    "L_BASIC_TYPE": ("type", ["buffer", "float", "function", "int", "mapping",
+    "L_BASIC_TYPE": ("type", ["bool", "null_value", "error_value", "buffer", "float", "function", "int", "mapping",
                               "mixed", "object", "string", "void"]),
     # `promise` has its own token so `promise<T>` can take a payload type
     "L_PROMISE": ("type", ["promise"]),
@@ -221,6 +222,7 @@ TOKEN_SPEC = {
     "L_BREAK": ("keyword", ["break"]), "L_CONTINUE": ("keyword", ["continue"]),
     "L_RETURN": ("keyword", ["return"]), "L_INHERIT": ("keyword", ["inherit"]),
     "L_CATCH": ("keyword", ["catch"]), "L_NEW": ("keyword", ["new"]),
+    "L_TRY": ("keyword", ["try"]),
     "L_AWAIT": ("keyword", ["await"]), "L_ACATCH": ("keyword", ["acatch"]),
     # lexer_utils.cc's reswords[] maps BOTH spellings to L_CLASS (STRUCT_CLASS
     # and STRUCT_STRUCT are both unconditionally #defined in

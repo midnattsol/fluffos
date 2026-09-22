@@ -1,0 +1,29 @@
+#pragma strict_types
+#pragma modern_types
+#include <tests.h>
+
+async bool ready() { return true; }
+
+async void capture_rejection() {
+  mixed caught;
+  mixed rejected = promise_create();
+  promise_reject(rejected, 0);
+  try {
+    await rejected;
+    ASSERT(0);
+  } catch (caught) {
+    ASSERT(errorp(caught));
+    ASSERT_EQ(0, error_info(caught)["context"]["value"]);
+  }
+  ASSERT(json_nullp(acatch(await ready())));
+  RELEASE_LATCH("modern async capture");
+}
+
+void do_tests() {
+  promise<bool> value = ready();
+  ASSERT_EQ("promise", typeof(value));
+  ASSERT_EQ(0, strsrch(sprintf("%O", value), "PROMISE<bool>"));
+  ASSERT(booleanp(promise_result(value)));
+  EXPECT_LATCH("modern async capture");
+  capture_rejection();
+}

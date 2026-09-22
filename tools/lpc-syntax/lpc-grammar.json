@@ -15,12 +15,14 @@
     "do",
     "efun",
     "else",
+    "false",
     "for",
     "foreach",
     "if",
     "in",
     "inherit",
     "new",
+    "null",
     "parse_command",
     "ref",
     "return",
@@ -28,15 +30,20 @@
     "struct",
     "switch",
     "time_expression",
+    "true",
+    "try",
     "while"
   ],
   "typeKeywords": [
+    "bool",
     "buffer",
+    "error_value",
     "float",
     "function",
     "int",
     "mapping",
     "mixed",
+    "null_value",
     "object",
     "promise",
     "string",
@@ -147,6 +154,14 @@
     "L_NUMBER": {
       "category": "number"
     },
+    "L_SCALAR_LITERAL": {
+      "category": "keyword",
+      "spellings": [
+        "true",
+        "false",
+        "null"
+      ]
+    },
     "L_REAL": {
       "category": "number"
     },
@@ -162,6 +177,9 @@
     "L_BASIC_TYPE": {
       "category": "type",
       "spellings": [
+        "bool",
+        "null_value",
+        "error_value",
         "buffer",
         "float",
         "function",
@@ -400,6 +418,12 @@
       "category": "keyword",
       "spellings": [
         "catch"
+      ]
+    },
+    "L_TRY": {
+      "category": "keyword",
+      "spellings": [
+        "try"
       ]
     },
     "L_AWAIT": {
@@ -659,6 +683,29 @@
         "L_CONTINUE",
         "';'"
       ]
+    },
+    {
+      "lhs": "statement",
+      "rhs": [
+        "try_body",
+        "L_CATCH",
+        "'('",
+        "lvalue",
+        "')'",
+        "block"
+      ]
+    },
+    {
+      "lhs": "try_body",
+      "rhs": [
+        "L_TRY",
+        "try_context_start",
+        "expr_or_block"
+      ]
+    },
+    {
+      "lhs": "try_context_start",
+      "rhs": []
     },
     {
       "lhs": "stmt_return",
@@ -2348,6 +2395,12 @@
       "lhs": "number",
       "rhs": [
         "L_NUMBER"
+      ]
+    },
+    {
+      "lhs": "number",
+      "rhs": [
+        "L_SCALAR_LITERAL"
       ]
     },
     {

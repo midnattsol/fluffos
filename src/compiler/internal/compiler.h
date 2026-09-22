@@ -85,6 +85,9 @@ struct mem_block_t {
 #define TYPE_FUNCTION 8
 #define TYPE_REAL 9
 #define TYPE_BUFFER 10
+#define TYPE_BOOLEAN 11
+#define TYPE_NULL 12
+#define TYPE_ERROR 13
 #define TYPE_MASK 0xf
 
 /*
@@ -118,7 +121,7 @@ int simul_efun_call_type(int n);
 /* the runtime tag (svalue_t::subtype of a T_PROMISE) for a promise type
  * word: the payload's T_* mask via convert_type(), or 0 when the payload
  * carries no constraint (mixed/void/unknown) */
-unsigned short promise_value_subtype(int t);
+uint32_t promise_value_subtype(int t);
 int convert_type(int type); /* apply.cc: compile-time type word -> T_* mask */
 
 struct local_info_t {
@@ -275,8 +278,8 @@ extern int type_of_locals_size;
 extern int locals_size;
 extern int current_number_of_locals;
 extern int max_num_locals;
-extern short compatible[11];
-extern short is_type[11];
+extern short compatible[14];
+extern short is_type[14];
 extern int comp_last_inherited;
 
 char* get_type_modifiers(char*, char*, int);

@@ -491,6 +491,8 @@ LPC_INT svalue_to_int(svalue_t* v) {
 }
 
 int msameval(const svalue_t* arg1, const svalue_t* arg2) {
+  if ((arg1->type | arg2->type) & (T_BOOLEAN | T_NULL))
+    return arg1->type == arg2->type && arg1->u.number == arg2->u.number;
   switch (arg1->type | arg2->type) {
     case T_NUMBER:
       return arg1->u.number == arg2->u.number;
@@ -1109,7 +1111,7 @@ void filter_mapping(svalue_t* arg, int num_arg) {
       ret = call_efun_callback(&ftc, 2);
       if (!ret) {
         break;
-      } else if (ret->type != T_NUMBER || ret->u.number) {
+      } else if (!IS_ZERO(ret)) {
         tb_index = node_hash(elt) & size;
         b = newmap->table + tb_index;
         if (!(n = *b) && !(--newmap->unfilled)) {

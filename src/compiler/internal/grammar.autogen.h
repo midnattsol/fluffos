@@ -62,58 +62,60 @@ extern int yydebug;
     YYUNDEF = 257,                 /* "invalid token"  */
     L_STRING = 258,                /* L_STRING  */
     L_NUMBER = 259,                /* L_NUMBER  */
-    L_REAL = 260,                  /* L_REAL  */
-    L_TEMPLATE_HEAD = 261,         /* L_TEMPLATE_HEAD  */
-    L_TEMPLATE_MIDDLE = 262,       /* L_TEMPLATE_MIDDLE  */
-    L_TEMPLATE_TAIL = 263,         /* L_TEMPLATE_TAIL  */
-    L_BASIC_TYPE = 264,            /* L_BASIC_TYPE  */
-    L_TYPE_MODIFIER = 265,         /* L_TYPE_MODIFIER  */
-    L_DEFINED_NAME = 266,          /* L_DEFINED_NAME  */
-    L_IDENTIFIER = 267,            /* L_IDENTIFIER  */
-    L_EFUN = 268,                  /* L_EFUN  */
-    L_INC_DEC = 269,               /* L_INC_DEC  */
-    L_ASSIGN = 270,                /* L_ASSIGN  */
-    L_LAND = 271,                  /* L_LAND  */
-    L_LOR = 272,                   /* L_LOR  */
-    L_QUESTION_QUESTION = 273,     /* L_QUESTION_QUESTION  */
-    L_SHIFT = 274,                 /* L_SHIFT  */
-    L_EQ_NE = 275,                 /* L_EQ_NE  */
-    L_ORDER = 276,                 /* L_ORDER  */
-    L_IF = 277,                    /* L_IF  */
-    L_ELSE = 278,                  /* L_ELSE  */
-    L_SWITCH = 279,                /* L_SWITCH  */
-    L_CASE = 280,                  /* L_CASE  */
-    L_DEFAULT = 281,               /* L_DEFAULT  */
-    L_RANGE = 282,                 /* L_RANGE  */
-    L_DOT_DOT_DOT = 283,           /* L_DOT_DOT_DOT  */
-    L_WHILE = 284,                 /* L_WHILE  */
-    L_DO = 285,                    /* L_DO  */
-    L_FOR = 286,                   /* L_FOR  */
-    L_FOREACH = 287,               /* L_FOREACH  */
-    L_IN = 288,                    /* L_IN  */
-    L_BREAK = 289,                 /* L_BREAK  */
-    L_CONTINUE = 290,              /* L_CONTINUE  */
-    L_RETURN = 291,                /* L_RETURN  */
-    L_ARROW = 292,                 /* L_ARROW  */
-    L_INHERIT = 293,               /* L_INHERIT  */
-    L_COLON_COLON = 294,           /* L_COLON_COLON  */
-    L_OPTIONAL_DOT = 295,          /* L_OPTIONAL_DOT  */
-    L_DOT_OPTIONAL = 296,          /* L_DOT_OPTIONAL  */
-    L_FUNCTION_OPEN = 297,         /* L_FUNCTION_OPEN  */
-    L_SSCANF = 298,                /* L_SSCANF  */
-    L_CATCH = 299,                 /* L_CATCH  */
-    L_AWAIT = 300,                 /* L_AWAIT  */
-    L_ACATCH = 301,                /* L_ACATCH  */
-    L_PROMISE = 302,               /* L_PROMISE  */
-    L_ARRAY = 303,                 /* L_ARRAY  */
-    L_REF = 304,                   /* L_REF  */
-    L_PARSE_COMMAND = 305,         /* L_PARSE_COMMAND  */
-    L_TIME_EXPRESSION = 306,       /* L_TIME_EXPRESSION  */
-    L_CLASS = 307,                 /* L_CLASS  */
-    L_NEW = 308,                   /* L_NEW  */
-    L_PARAMETER = 309,             /* L_PARAMETER  */
-    L_TREE = 310,                  /* L_TREE  */
-    LOWER_THAN_ELSE = 311          /* LOWER_THAN_ELSE  */
+    L_SCALAR_LITERAL = 260,        /* L_SCALAR_LITERAL  */
+    L_REAL = 261,                  /* L_REAL  */
+    L_TEMPLATE_HEAD = 262,         /* L_TEMPLATE_HEAD  */
+    L_TEMPLATE_MIDDLE = 263,       /* L_TEMPLATE_MIDDLE  */
+    L_TEMPLATE_TAIL = 264,         /* L_TEMPLATE_TAIL  */
+    L_BASIC_TYPE = 265,            /* L_BASIC_TYPE  */
+    L_TYPE_MODIFIER = 266,         /* L_TYPE_MODIFIER  */
+    L_DEFINED_NAME = 267,          /* L_DEFINED_NAME  */
+    L_IDENTIFIER = 268,            /* L_IDENTIFIER  */
+    L_EFUN = 269,                  /* L_EFUN  */
+    L_INC_DEC = 270,               /* L_INC_DEC  */
+    L_ASSIGN = 271,                /* L_ASSIGN  */
+    L_LAND = 272,                  /* L_LAND  */
+    L_LOR = 273,                   /* L_LOR  */
+    L_QUESTION_QUESTION = 274,     /* L_QUESTION_QUESTION  */
+    L_SHIFT = 275,                 /* L_SHIFT  */
+    L_EQ_NE = 276,                 /* L_EQ_NE  */
+    L_ORDER = 277,                 /* L_ORDER  */
+    L_IF = 278,                    /* L_IF  */
+    L_ELSE = 279,                  /* L_ELSE  */
+    L_SWITCH = 280,                /* L_SWITCH  */
+    L_CASE = 281,                  /* L_CASE  */
+    L_DEFAULT = 282,               /* L_DEFAULT  */
+    L_RANGE = 283,                 /* L_RANGE  */
+    L_DOT_DOT_DOT = 284,           /* L_DOT_DOT_DOT  */
+    L_WHILE = 285,                 /* L_WHILE  */
+    L_DO = 286,                    /* L_DO  */
+    L_FOR = 287,                   /* L_FOR  */
+    L_FOREACH = 288,               /* L_FOREACH  */
+    L_IN = 289,                    /* L_IN  */
+    L_BREAK = 290,                 /* L_BREAK  */
+    L_CONTINUE = 291,              /* L_CONTINUE  */
+    L_RETURN = 292,                /* L_RETURN  */
+    L_ARROW = 293,                 /* L_ARROW  */
+    L_INHERIT = 294,               /* L_INHERIT  */
+    L_COLON_COLON = 295,           /* L_COLON_COLON  */
+    L_OPTIONAL_DOT = 296,          /* L_OPTIONAL_DOT  */
+    L_DOT_OPTIONAL = 297,          /* L_DOT_OPTIONAL  */
+    L_FUNCTION_OPEN = 298,         /* L_FUNCTION_OPEN  */
+    L_SSCANF = 299,                /* L_SSCANF  */
+    L_CATCH = 300,                 /* L_CATCH  */
+    L_TRY = 301,                   /* L_TRY  */
+    L_AWAIT = 302,                 /* L_AWAIT  */
+    L_ACATCH = 303,                /* L_ACATCH  */
+    L_PROMISE = 304,               /* L_PROMISE  */
+    L_ARRAY = 305,                 /* L_ARRAY  */
+    L_REF = 306,                   /* L_REF  */
+    L_PARSE_COMMAND = 307,         /* L_PARSE_COMMAND  */
+    L_TIME_EXPRESSION = 308,       /* L_TIME_EXPRESSION  */
+    L_CLASS = 309,                 /* L_CLASS  */
+    L_NEW = 310,                   /* L_NEW  */
+    L_PARAMETER = 311,             /* L_PARAMETER  */
+    L_TREE = 312,                  /* L_TREE  */
+    LOWER_THAN_ELSE = 313          /* LOWER_THAN_ELSE  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -122,7 +124,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 172 "$REPO_ROOT$/src/compiler/internal/grammar.y"
+#line 174 "$REPO_ROOT$/src/compiler/internal/grammar.y"
 
   LPC_INT number;              /* integers, opcodes, type flags */
   LPC_FLOAT real;              /* floating-point literals */
@@ -153,7 +155,7 @@ union YYSTYPE
     LPC_INT saved_refs;
   } call_open;                 /* context/refs captured at the '(' of a call */
 
-#line 157 "$BUILD_ROOT$/src/grammar.autogen.h"
+#line 159 "$BUILD_ROOT$/src/grammar.autogen.h"
 
 };
 typedef union YYSTYPE YYSTYPE;
@@ -194,4 +196,4 @@ void yypstate_delete (yypstate *ps);
 
 
 #endif /* !YY_YY_GRAMMAR_AUTOGEN_H_INCLUDED  */
-/* FluffOS generated-from grammar.y sha256=d24fef6a097ead9873e55993e9e1dc55af517ccc91b32a044d0570f3d8d7128c */
+/* FluffOS generated-from grammar.y sha256=e9fe2193bbf6328015bbcc384a05af9eee38c58e481e1c12db8da35ff3e7e050 */

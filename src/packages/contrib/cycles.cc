@@ -112,6 +112,7 @@ void* compound_ptr(const svalue_t* sv) {
     case T_ARRAY:
     case T_CLASS:
       return reinterpret_cast<void*>(sv->u.arr);
+    case T_ERROR:
     case T_MAPPING:
       return reinterpret_cast<void*>(sv->u.map);
     case T_FUNCTION:
@@ -145,6 +146,7 @@ std::string render_key(const svalue_t* key) {
       return "<array>";
     case T_CLASS:
       return "<class>";
+    case T_ERROR:
     case T_MAPPING:
       return "<mapping>";
     case T_FUNCTION:
@@ -269,6 +271,7 @@ void cycle_walk(svalue_t* root, WalkMode mode, WalkResult* res) {
         }
         break;
       }
+      case T_ERROR:
       case T_MAPPING: {
         mapping_t* map = f.u.map;
         // table_size is a mask: valid buckets are 0 .. table_size inclusive

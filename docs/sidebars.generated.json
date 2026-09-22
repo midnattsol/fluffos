@@ -975,9 +975,27 @@
           },
           {
             "type": "doc",
+            "id": "efun/filesystem/file_append",
+            "key": "efun/filesystem/file_append",
+            "label": "file_append"
+          },
+          {
+            "type": "doc",
+            "id": "efun/filesystem/file_read",
+            "key": "efun/filesystem/file_read",
+            "label": "file_read"
+          },
+          {
+            "type": "doc",
             "id": "efun/filesystem/file_size",
             "key": "efun/filesystem/file_size",
             "label": "file_size"
+          },
+          {
+            "type": "doc",
+            "id": "efun/filesystem/file_write",
+            "key": "efun/filesystem/file_write",
+            "label": "file_write"
           },
           {
             "type": "doc",
@@ -1206,6 +1224,12 @@
           },
           {
             "type": "doc",
+            "id": "efun/general/booleanp",
+            "key": "efun/general/booleanp",
+            "label": "booleanp"
+          },
+          {
+            "type": "doc",
             "id": "efun/general/classp",
             "key": "efun/general/classp",
             "label": "classp"
@@ -1236,6 +1260,18 @@
           },
           {
             "type": "doc",
+            "id": "efun/general/error_info",
+            "key": "efun/general/error_info",
+            "label": "error_info"
+          },
+          {
+            "type": "doc",
+            "id": "efun/general/errorp",
+            "key": "efun/general/errorp",
+            "label": "errorp"
+          },
+          {
+            "type": "doc",
             "id": "efun/general/explode_reversible",
             "key": "efun/general/explode_reversible",
             "label": "explode_reversible"
@@ -1251,6 +1287,12 @@
             "id": "efun/general/id_matrix",
             "key": "efun/general/id_matrix",
             "label": "id_matrix"
+          },
+          {
+            "type": "doc",
+            "id": "efun/general/json_nullp",
+            "key": "efun/general/json_nullp",
+            "label": "json_nullp"
           },
           {
             "type": "doc",
@@ -1275,6 +1317,12 @@
             "id": "efun/general/lookat_rotate2",
             "key": "efun/general/lookat_rotate2",
             "label": "lookat_rotate2"
+          },
+          {
+            "type": "doc",
+            "id": "efun/general/make_error",
+            "key": "efun/general/make_error",
+            "label": "make_error"
           },
           {
             "type": "doc",
@@ -1972,6 +2020,12 @@
           },
           {
             "type": "doc",
+            "id": "efun/mappings/mapping_has",
+            "key": "efun/mappings/mapping_has",
+            "label": "mapping_has"
+          },
+          {
+            "type": "doc",
             "id": "efun/mappings/match_path",
             "key": "efun/mappings/match_path",
             "label": "match_path"
@@ -2340,6 +2394,24 @@
           "description": "The parse_command natural-language sentence, verb and rule parser."
         },
         "items": [
+          {
+            "type": "doc",
+            "id": "efun/parsing/json_decode",
+            "key": "efun/parsing/json_decode",
+            "label": "json_decode"
+          },
+          {
+            "type": "doc",
+            "id": "efun/parsing/json_decode_object",
+            "key": "efun/parsing/json_decode_object",
+            "label": "json_decode_object"
+          },
+          {
+            "type": "doc",
+            "id": "efun/parsing/json_encode",
+            "key": "efun/parsing/json_encode",
+            "label": "json_encode"
+          },
           {
             "type": "doc",
             "id": "efun/parsing/parse_add_rule",

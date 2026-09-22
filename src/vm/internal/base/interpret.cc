@@ -23,6 +23,7 @@
 #include "compiler/internal/lexer.h"  // for insstr, FIXME
 #include "packages/core/sprintf.h"    // FIXME
 #include "packages/core/regexp.h"     // FIXME
+#include "packages/core/errors.h"
 #include "packages/ops/ops.h"         // FIXME
 #include "compiler/internal/disassembler.h"
 
@@ -47,7 +48,7 @@ void push_indexed_lvalue(int /*code*/);
 void break_point(void);
 static void do_loop_cond_number(void);
 static void do_loop_cond_local(void);
-static void do_catch(char* /*pc*/, unsigned int /*new_pc_offset*/);
+static bool do_catch(char* /*pc*/, unsigned int /*new_pc_offset*/);
 int last_instructions(void);
 static const char* get_arg(int, int);
 extern inline const char* access_to_name(int /*mode*/);
@@ -357,6 +358,12 @@ const char* type_name(int c) {
   } while (!((limit <<= 1) & TYPE_CODES_END));
   /* Oh crap.  Take some time and figure out what we have. */
   switch (c) {
+    case T_ERROR:
+      return "error";
+    case T_BOOLEAN:
+      return "bool";
+    case T_NULL:
+      return "null";
     case T_PROMISE:
       return "promise";
     case T_INVALID:
@@ -1398,6 +1405,21 @@ static void add_type_mask_names(outbuffer_t* buf, uint32_t type, const char* sep
       outbuf_add(buf, sep);
     }
     outbuf_add(buf, "promise");
+    flag = 1;
+  }
+  if (type & T_BOOLEAN) {
+    if (flag) outbuf_add(buf, sep);
+    outbuf_add(buf, "bool");
+    flag = 1;
+  }
+  if (type & T_NULL) {
+    if (flag) outbuf_add(buf, sep);
+    outbuf_add(buf, "null");
+    flag = 1;
+  }
+  if (type & T_ERROR) {
+    if (flag) outbuf_add(buf, sep);
+    outbuf_add(buf, "error");
   }
 }
 
@@ -2585,6 +2607,12 @@ void eval_instruction(char* p) {
         LOAD_INT(i, pc);
         push_number(i);
         break;
+      case F_PUSH_TRUE:
+      case F_PUSH_FALSE:
+      case F_PUSH_NULL:
+        push_number(instruction == F_PUSH_TRUE ? 1 : 0);
+        sp->type = instruction == F_PUSH_NULL ? T_NULL : T_BOOLEAN;
+        break;
       case F_REAL:
         LOAD_FLOAT(real, pc);
         push_real(real);
@@ -2597,7 +2625,8 @@ void eval_instruction(char* p) {
         break;
 #ifdef F_JUMP_WHEN_NON_ZERO
       case F_JUMP_WHEN_NON_ZERO:
-        if ((i = (sp->type == T_NUMBER)) && (sp->u.number == 0)) {
+        i = sp->type == T_NUMBER || sp->type == T_BOOLEAN || sp->type == T_NULL;
+        if (IS_ZERO(sp)) {
           pc += 2;
         } else {
           COPY_SHORT(&offset, pc);
@@ -2665,7 +2694,7 @@ void eval_instruction(char* p) {
         }
         break;
       case F_BRANCH_WHEN_ZERO: /* relative offset */
-        if ((sp->type == T_NUMBER && !sp->u.number) || (sp->type == T_REAL && !sp->u.real)) {
+        if (IS_ZERO(sp) || (sp->type == T_REAL && !sp->u.real)) {
           sp--;
           COPY_SHORT(&offset, pc);
           pc += offset;
@@ -2676,7 +2705,7 @@ void eval_instruction(char* p) {
         pc += 2; /* skip over the offset */
         break;
       case F_BRANCH_WHEN_NON_ZERO: /* relative offset */
-        if ((sp->type == T_NUMBER && !sp->u.number) || (sp->type == T_REAL && !sp->u.real)) {
+        if (IS_ZERO(sp) || (sp->type == T_REAL && !sp->u.real)) {
           sp--;
           pc += 2;
           break;
@@ -2687,7 +2716,7 @@ void eval_instruction(char* p) {
         pc += offset;
         break;
       case F_BBRANCH_WHEN_ZERO: /* relative backwards offset */
-        if ((sp->type == T_NUMBER && !sp->u.number) || (sp->type == T_REAL && !sp->u.real)) {
+        if (IS_ZERO(sp) || (sp->type == T_REAL && !sp->u.real)) {
           sp--;
           COPY_SHORT(&offset, pc);
           pc -= offset;
@@ -2698,7 +2727,7 @@ void eval_instruction(char* p) {
         pc += 2;
         break;
       case F_BBRANCH_WHEN_NON_ZERO: /* relative backwards offset */
-        if ((sp->type == T_NUMBER && !sp->u.number) || (sp->type == T_REAL && !sp->u.real)) {
+        if (IS_ZERO(sp) || (sp->type == T_REAL && !sp->u.real)) {
           sp--;
           pc += 2;
           break;
@@ -2710,7 +2739,7 @@ void eval_instruction(char* p) {
         break;
       case F_LOR:
         /* replaces F_DUP; F_BRANCH_WHEN_NON_ZERO; F_POP */
-        if ((sp->type == T_NUMBER && !sp->u.number) || (sp->type == T_REAL && !sp->u.real)) {
+        if (IS_ZERO(sp) || (sp->type == T_REAL && !sp->u.real)) {
           pc += 2;
           sp--;
           break;
@@ -2720,8 +2749,8 @@ void eval_instruction(char* p) {
         break;
       case F_LAND:
         /* replaces F_DUP; F_BRANCH_WHEN_ZERO; F_POP */
-        if (sp->type == T_NUMBER || sp->type == T_REAL) {
-          if ((sp->type == T_NUMBER && !sp->u.number) || (sp->type == T_REAL && !sp->u.real)) {
+        if (sp->type == T_NUMBER || sp->type == T_REAL || sp->type == T_BOOLEAN || sp->type == T_NULL) {
+          if (IS_ZERO(sp) || (sp->type == T_REAL && !sp->u.real)) {
             COPY_SHORT(&offset, pc);
             pc += offset;
             break;
@@ -2737,7 +2766,7 @@ void eval_instruction(char* p) {
          * Undefined is T_NUMBER with value 0 and subtype T_UNDEFINED
          * If value is undefined, pop it and evaluate right side
          * Otherwise keep it and skip right side */
-        if (sp->type == T_NUMBER && !sp->u.number && (sp->subtype == T_UNDEFINED)) {
+        if (sp->type == T_NULL || (sp->type == T_NUMBER && !sp->u.number && (sp->subtype == T_UNDEFINED))) {
           /* Value is undefined - pop it and evaluate right side */
           pc += 2;
           sp--;
@@ -2752,7 +2781,7 @@ void eval_instruction(char* p) {
           error("Invalid Program: non-lvalue argument to ||=.");
         }
         svalue_t* lval = lvalue_target(sp);
-        if ((lval->type == T_NUMBER && !lval->u.number) ||
+        if (IS_ZERO(lval) ||
             (lval->type == T_REAL && !lval->u.real)) {
           pc += 2;
         } else {
@@ -2767,7 +2796,7 @@ void eval_instruction(char* p) {
           error("Invalid Program: non-lvalue argument to &&=.");
         }
         svalue_t* lval = lvalue_target(sp);
-        if ((lval->type == T_NUMBER && !lval->u.number) ||
+        if (IS_ZERO(lval) ||
             (lval->type == T_REAL && !lval->u.real)) {
           replace_lvalue_with_value_on_stack(sp, "F_LAND_EQ");
           COPY_SHORT(&offset, pc);
@@ -2782,7 +2811,7 @@ void eval_instruction(char* p) {
           error("Invalid Program: non-lvalue argument to ??=.");
         }
         svalue_t* lval = lvalue_target(sp);
-        if (lval->type == T_NUMBER && !lval->u.number && (lval->subtype == T_UNDEFINED)) {
+        if (lval->type == T_NULL || (lval->type == T_NUMBER && !lval->u.number && (lval->subtype == T_UNDEFINED))) {
           pc += 2;
         } else {
           replace_lvalue_with_value_on_stack(sp, "F_NULLISH_EQ");
@@ -4314,6 +4343,11 @@ void eval_instruction(char* p) {
         }
         break;
       case F_NOT:
+        if (sp->type == T_BOOLEAN || sp->type == T_NULL) {
+          const bool result = IS_ZERO(sp);
+          put_number(result);
+          break;
+        }
         if (sp->type == T_NUMBER) {
           sp->u.number = !sp->u.number;
           sp->subtype = 0;
@@ -4649,7 +4683,9 @@ void eval_instruction(char* p) {
       case F_XOR_EQ:
         f_xor_eq();
         break;
+      case F_CATCH_ERROR:
       case F_CATCH: {
+        const bool structured = instruction == F_CATCH_ERROR;
         /*
          * Compute address of next instruction after the CATCH
          * statement.
@@ -4659,11 +4695,12 @@ void eval_instruction(char* p) {
          * `offset` local, see F_ACATCH */
         unsigned int const catch_offset = (pc - 2) + offset - current_prog->program;
 
-        do_catch(pc, catch_offset);
+        const bool caught = do_catch(pc, catch_offset);
         if ((csp[1].framekind & (FRAME_EXTERNAL | FRAME_RETURNED_FROM_CATCH)) ==
             (FRAME_EXTERNAL | FRAME_RETURNED_FROM_CATCH)) {
           return;
         }
+        if (structured) normalize_caught_error(sp, caught);
 
         break;
       }
@@ -4692,6 +4729,7 @@ void eval_instruction(char* p) {
         coroutine_await_pending(sp->u.prom);
         return;
       }
+      case F_ACATCH_ERROR:
       case F_ACATCH: {
         /* like F_CATCH, but a pure control-stack marker: no C++ recursion,
          * so an await may suspend inside the protected region. Unwinding
@@ -4705,7 +4743,8 @@ void eval_instruction(char* p) {
         if (!g_coroutine_econ) {
           error("acatch: not inside an async function body.\n");
         }
-        push_control_stack(FRAME_CATCH | FRAME_ASYNC);
+        push_control_stack(FRAME_CATCH | FRAME_ASYNC |
+                           (instruction == F_ACATCH_ERROR ? FRAME_STRUCTURED_CATCH : 0));
         csp->save_sp = sp;
         csp->save_cgsp = cgsp;
         csp->pc = continuation;
@@ -4713,10 +4752,12 @@ void eval_instruction(char* p) {
         break;
       }
       case F_END_ACATCH: {
+        const bool structured = csp->framekind & FRAME_STRUCTURED_CATCH;
         /* success path: pop the marker (restores pc to the continuation,
          * which is exactly here) and yield 0, staying in this loop */
         pop_control_stack();
         push_number(0);
+        if (structured) sp->type = T_NULL;
         break;
       }
       case F_TIME_EXPRESSION: {
@@ -4868,7 +4909,8 @@ void eval_instruction(char* p) {
   } /* while (1) */
 }
 
-static void do_catch(char* pc, unsigned int new_pc_offset) {
+static bool do_catch(char* pc, unsigned int new_pc_offset) {
+  bool caught = false;
   error_context_t econ;
 #ifdef DEBUG
   /* See control_stack_t::save_temporaries. The unwind below pops the value
@@ -4894,6 +4936,7 @@ static void do_catch(char* pc, unsigned int new_pc_offset) {
     /* note, this will work, since csp->extern_call won't be used */
     eval_instruction(pc);
   } catch (const char*) {
+    caught = true;
     /*
      * They did a throw() or error. That means that the control stack
      * must be restored manually here.
@@ -4916,6 +4959,7 @@ static void do_catch(char* pc, unsigned int new_pc_offset) {
     }
   }
   pop_context(&econ);
+  return caught;
 }
 
 /* Reason for the following 1. save cache space 2. speed :) */

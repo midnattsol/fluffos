@@ -815,7 +815,7 @@ void i_generate_node(parse_node_t* expr) {
       int addr;
 
       end_pushes();
-      ins_byte(F_CATCH);
+      ins_byte(expr->v.number);
       addr = CURRENT_PROGRAM_SIZE;
       ins_short(0);
       i_generate_node(expr->r.expr);
@@ -827,7 +827,7 @@ void i_generate_node(parse_node_t* expr) {
       int addr;
 
       end_pushes();
-      ins_byte(F_ACATCH);
+      ins_byte(expr->v.number);
       addr = CURRENT_PROGRAM_SIZE;
       ins_short(0);
       i_generate_node(expr->r.expr);
@@ -1286,6 +1286,7 @@ void optimize_icode(char* start, char* pc, char* end) {
       }
 #endif
       case F_CATCH:
+      case F_CATCH_ERROR:
       case F_AGGREGATE:
       case F_AGGREGATE_ASSOC:
       case F_NEXT_FOREACH:

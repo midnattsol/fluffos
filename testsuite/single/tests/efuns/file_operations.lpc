@@ -1,0 +1,32 @@
+#include <tests.h>
+
+private void check_operations(string path) {
+  file_write(path, "primera\n");
+  ASSERT_EQ("primera\n", file_read(path));
+  file_write(path, "nieve y árboles\n");
+  ASSERT_EQ("nieve y árboles\n", file_read(path));
+  file_append(path, "segunda");
+  ASSERT_EQ("nieve y árboles\nsegunda", file_read(path));
+  file_write(path, "");
+  ASSERT_EQ("", file_read(path));
+  ASSERT_EQ(0, file_size(path));
+  ASSERT_EQ(0, sizeof(get_dir(path + ".tmp.*")));
+  rm(path);
+  ASSERT(catch(file_read(path)));
+  file_append(path, "created");
+  ASSERT_EQ("created", file_read(path));
+  ASSERT(catch(file_write(path + "/missing", "bad")));
+  ASSERT_EQ("created", file_read(path));
+  ASSERT(catch(file_read("/data")));
+  ASSERT(catch(file_write("/data", "bad")));
+  ASSERT(catch(file_append("/data", "bad")));
+  ASSERT(catch(file_read("")));
+  ASSERT(catch(file_write("", "bad")));
+}
+
+void do_tests() {
+  string path = "/data/file_operations.txt";
+  mixed failure = catch(check_operations(path));
+  rm(path);
+  if (failure) throw(failure);
+}

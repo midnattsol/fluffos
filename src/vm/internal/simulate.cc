@@ -2274,6 +2274,14 @@ static int num_mudlib_error = 0;
     throw("throw error");
     fatal("Throw_error failed!");
   }
+  if (catch_value.type == T_ERROR) {
+    const svalue_t* code = find_string_in_mapping(catch_value.u.map, "code");
+    const svalue_t* message = find_string_in_mapping(catch_value.u.map, "message");
+    const std::string description = std::string(code->u.string) + ": " + message->u.string;
+    free_svalue(&catch_value, "uncaught structured error");
+    catch_value = const0;
+    error("%s\n", description.c_str());
+  }
   error("Throw with no catch.\n");
 }
 

@@ -47,6 +47,12 @@ int convert_type(int type) {
       return T_REAL;
     case TYPE_BUFFER:
       return T_BUFFER;
+    case TYPE_BOOLEAN:
+      return T_BOOLEAN;
+    case TYPE_NULL:
+      return T_NULL;
+    case TYPE_ERROR:
+      return T_ERROR;
     default:
       if (type & TYPE_MOD_ARRAY) {
         return T_ARRAY;

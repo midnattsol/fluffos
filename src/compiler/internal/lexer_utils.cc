@@ -44,7 +44,7 @@
 #include "base/internal/file.h"
 
 #include "compiler/internal/grammar_rules.h"
-#include "grammar.autogen.h"
+#include <grammar.autogen.h>
 
 #include "base/internal/scratchpad.h"
 
@@ -267,6 +267,7 @@ typedef struct {
 } pragma_t;
 
 static pragma_t our_pragmas[] = {{"strict_types", PRAGMA_STRICT_TYPES},
+                                 {"modern_types", PRAGMA_MODERN_TYPES},
                                  {"save_types", PRAGMA_SAVE_TYPES},
                                  {"warnings", PRAGMA_WARNINGS},
                                  {"optimize", PRAGMA_OPTIMIZE},
@@ -1030,6 +1031,17 @@ int lpc_lex_resolve_identifier(union YYSTYPE* yylval_param, struct YYLTYPE* /*yy
     }
   }
 
+  if (pragmas & PRAGMA_MODERN_TYPES) {
+    if (text == "try") return L_TRY;
+    if (text == "bool" || text == "null_value" || text == "error_value") {
+      yylval_param->number = text == "bool" ? TYPE_BOOLEAN : text == "null_value" ? TYPE_NULL : TYPE_ERROR;
+      return L_BASIC_TYPE;
+    }
+    if (text == "true" || text == "false" || text == "null") {
+      yylval_param->number = text == "true" ? 1 : text == "false" ? 0 : 2;
+      return L_SCALAR_LITERAL;
+    }
+  }
   ident_hash_elem_t* ihe;
   if ((ihe = lookup_ident(text.c_str()))) {
     if (ihe->token & IHE_RESWORD) {

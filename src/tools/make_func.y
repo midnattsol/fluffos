@@ -34,6 +34,9 @@ void yyerror(const char *str) {
 #define T_FUNCTION 9
 #define T_BUFFER 10
 #define T_PROMISE 11
+#define T_BOOLEAN 12
+#define T_NULL 13
+#define T_ERROR 14
 
 extern int num_buff;
 extern int op_code, efun_code;
@@ -84,7 +87,10 @@ type types[] = {
     {"float", T_FLOAT},
     {"function", T_FUNCTION},
     {"buffer", T_BUFFER},
-    {"promise", T_PROMISE}
+    {"promise", T_PROMISE},
+    {"bool", T_BOOLEAN},
+    {"null_value", T_NULL},
+    {"error_value", T_ERROR}
 };
 
 #define NELEMS(arr) (sizeof arr / sizeof arr[0])
@@ -268,6 +274,9 @@ const char *ctype(int n) {
       case T_FLOAT:
         p = "TYPE_REAL";
         break;
+      case T_BOOLEAN: p = "TYPE_BOOLEAN"; break;
+      case T_NULL: p = "TYPE_NULL"; break;
+      case T_ERROR: p = "TYPE_ERROR"; break;
       case T_FUNCTION:
         p = "TYPE_FUNCTION";
         break;
@@ -313,6 +322,9 @@ const char *etype1(int n) {
   switch (n) {
     case T_FLOAT:
       return "T_REAL";
+    case T_BOOLEAN: return "T_BOOLEAN";
+    case T_NULL: return "T_NULL";
+    case T_ERROR: return "T_ERROR";
     case T_FUNCTION:
       return "T_FUNCTION";
     case T_INT:

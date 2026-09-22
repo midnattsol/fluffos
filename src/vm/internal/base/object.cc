@@ -112,6 +112,12 @@ static bool get_restore_size(int* out) {
 
 int svalue_save_size(svalue_t* v) {
   switch (v->type) {
+    case T_ERROR:
+      error("Native errors are transient values; serialize error_info() explicitly.\n");
+    case T_BOOLEAN:
+      return v->u.number ? 5 : 6;
+    case T_NULL:
+      return 5;
     case T_STRING: {
       const char* cp = v->u.string;
       char c;
@@ -243,6 +249,14 @@ void save_svalue(svalue_t* v, char** buf) {
       return;
     }
 
+    case T_BOOLEAN:
+    case T_NULL: {
+      const char* literal = v->type == T_NULL ? "null" : (v->u.number ? "true" : "false");
+      const size_t length = strlen(literal);
+      memcpy(*buf, literal, length + 1);
+      *buf += length;
+      return;
+    }
     case T_NUMBER: {
       sprintf(*buf, "%" LPC_INT_FMTSTR_P, v->u.number);
       (*buf) += strlen(*buf);
@@ -312,6 +326,18 @@ static bool grow_restore_sizes(int depth) {
     }
     sizes = RESIZE(sizes, max_depth, int, TAG_TEMPORARY, "restore_internal_size");
   }
+  return true;
+}
+
+static bool restore_literal(char** cursor, char first, svalue_t* value, bool interior) {
+  const char* suffix = first == 't' ? "rue" : first == 'f' ? "alse" : "ull";
+  const size_t length = strlen(suffix);
+  if (strncmp(*cursor, suffix, length) != 0) return false;
+  char* end = *cursor + length;
+  if (interior ? (*end != ',' && *end != ':') : (*end != '\0' && *end != '\n' && *end != '\r'))
+    return false;
+  *value = svalue_t{first == 'n' ? T_NULL : T_BOOLEAN, 0, {first == 't' ? 1 : 0}};
+  *cursor = end + (interior ? 1 : 0);
   return true;
 }
 
@@ -747,6 +773,11 @@ static int restore_mapping(char** str, svalue_t* sv) {
 
   while (true) {
     switch (c = *cp++) {
+      case 't':
+      case 'f':
+      case 'n':
+        if (!restore_literal(&cp, c, &key, true)) goto generic_key_error;
+        break;
       case '"': {
         *str = cp;
         if ((err = restore_hash_string(str, &key))) {
@@ -820,6 +851,11 @@ static int restore_mapping(char** str, svalue_t* sv) {
        responsible for it */
 
     switch (c = *cp++) {
+      case 't':
+      case 'f':
+      case 'n':
+        if (!restore_literal(&cp, c, &value, true)) goto generic_value_error;
+        break;
       case '"': {
         *str = cp;
         if ((err = restore_interior_string(str, &value))) {
@@ -985,6 +1021,12 @@ static int restore_class(char** str, svalue_t* ret) {
 
   while (size--) {
     switch (c = *cp++) {
+      case 't':
+      case 'f':
+      case 'n':
+        if (!restore_literal(&cp, c, sv, true)) goto generic_error;
+        sv++;
+        break;
       case '"':
         *str = cp;
         if ((err = restore_interior_string(str, sv))) {
@@ -1099,6 +1141,12 @@ static int restore_array(char** str, svalue_t* ret) {
 
   while (size--) {
     switch (c = *cp++) {
+      case 't':
+      case 'f':
+      case 'n':
+        if (!restore_literal(&cp, c, sv, true)) goto generic_error;
+        sv++;
+        break;
       case '"':
         *str = cp;
         if ((err = restore_interior_string(str, sv))) {
@@ -1253,6 +1301,10 @@ int restore_svalue(char* cp, svalue_t* v) {
   char c;
 
   switch (c = *cp++) {
+    case 't':
+    case 'f':
+    case 'n':
+      return restore_literal(&cp, c, v, false) ? 0 : ROB_GENERAL_ERROR;
     case '"':
       return restore_string(cp, v);
     case '(':
@@ -1310,6 +1362,11 @@ static int safe_restore_svalue(char* cp, svalue_t* v) {
 
   val.type = T_NUMBER;
   switch (c = *cp++) {
+    case 't':
+    case 'f':
+    case 'n':
+      if (!restore_literal(&cp, c, &val, false)) return ROB_GENERAL_ERROR;
+      break;
     case '"':
       if ((ret = restore_string(cp, &val))) {
         return ret;

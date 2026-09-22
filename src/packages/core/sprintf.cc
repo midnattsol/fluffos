@@ -457,6 +457,18 @@ void svalue_to_string(svalue_t* obj, outbuffer_t* outbuf, int indent, int traili
     }
       outbuf_add(outbuf, " :)");
       break;
+    case T_ERROR: {
+      const svalue_t* code = find_string_in_mapping(obj->u.map, "code");
+      const svalue_t* message = find_string_in_mapping(obj->u.map, "message");
+      outbuf_addv(outbuf, "ERROR(%s: %s)", code->u.string, message->u.string);
+      break;
+    }
+    case T_BOOLEAN:
+      outbuf_add(outbuf, obj->u.number ? "true" : "false");
+      break;
+    case T_NULL:
+      outbuf_add(outbuf, "null");
+      break;
     case T_PROMISE:
       /* the declared payload type, when the value carries one (an async
          function's promise does; promise_create()'s does not) */

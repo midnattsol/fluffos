@@ -6,6 +6,7 @@
 
 #include "base/internal/tracing.h"
 #include "packages/core/file.h"
+#include "packages/core/errors.h"
 
 #include <iostream>
 #include <cerrno>
@@ -47,6 +48,164 @@
 #include "base/internal/strutils.h"
 #include "ghc/filesystem.hpp"
 namespace fs = ghc::filesystem;
+
+namespace {
+// Keep resources in C++ owners: an LPC error unwinds the C++ stack.
+struct OwnedFile {
+  FILE* stream = nullptr;
+  std::string temporary;
+  ~OwnedFile() {
+    if (stream) fclose(stream);
+    if (!temporary.empty()) std::remove(temporary.c_str());
+  }
+};
+
+std::string checked_file_path(const std::string& requested, const char* operation, bool writing) {
+  if (requested.empty() || requested.find('\0') != std::string::npos)
+    raise_structured_error("io.invalid_path", operation, requested);
+  const char* approved = check_valid_path(requested.c_str(), current_object, operation, writing);
+  if (!approved) raise_structured_error("io.permission_denied", operation, requested);
+  // check_valid_path returns storage owned by the master's apply result.
+  return approved;
+}
+
+void require_regular_path(const std::string& path, const char* operation, bool allow_missing,
+                          const std::string& requested) {
+  std::error_code failure;
+  const auto status = fs::symlink_status(path, failure);
+  if (allow_missing && (failure == std::errc::no_such_file_or_directory ||
+                        (!failure && !fs::exists(status)))) return;
+  if (failure)
+    raise_structured_error(failure == std::errc::no_such_file_or_directory ? "io.not_found" : "io.failure",
+                            std::string(operation) + ": " + failure.message(), requested);
+  if (!fs::is_regular_file(status))
+    raise_structured_error("io.not_file", operation, requested);
+}
+
+void require_text(const std::string& contents, const char* operation) {
+  if (!u8_validate(reinterpret_cast<const uint8_t*>(contents.data()), contents.size()) ||
+      contents.find('\0') != std::string::npos)
+    raise_structured_error("io.invalid_text", operation, "");
+}
+
+void file_io_error(const char* operation, const std::string& path, int code) {
+  raise_structured_error(code == ENOENT ? "io.not_found" :
+                         code == EACCES || code == EPERM ? "io.permission_denied" : "io.failure",
+                         std::string(operation) + ": " + strerror(code), path);
+}
+
+void write_complete(FILE* stream, const std::string& contents, const char* operation,
+                    const std::string& path) {
+  size_t offset = 0;
+  while (offset < contents.size()) {
+    const size_t written = fwrite(contents.data() + offset, 1, contents.size() - offset, stream);
+    if (!written) file_io_error(operation, path, errno ? errno : EIO);
+    offset += written;
+  }
+  if (fflush(stream) != 0) file_io_error(operation, path, errno);
+}
+
+void close_checked(OwnedFile& file, const char* operation, const std::string& path) {
+  FILE* stream = file.stream;
+  file.stream = nullptr;
+  if (fclose(stream) != 0) file_io_error(operation, path, errno);
+}
+}  // namespace
+
+#ifdef F_FILE_READ
+void f_file_read() {
+  const std::string requested(sp->u.string, SVALUE_STRLEN(sp));
+  const std::string path = checked_file_path(requested, "file_read", false);
+  require_regular_path(path, "file_read", false, requested);
+  OwnedFile file;
+  file.stream = fopen(path.c_str(), "rb");
+  if (!file.stream) file_io_error("file_read", requested, errno);
+  struct stat info;
+  if (fstat(fileno(file.stream), &info) != 0) file_io_error("file_read", requested, errno);
+  if (!S_ISREG(info.st_mode)) raise_structured_error("io.not_file", "file_read", requested);
+  const size_t limit = std::min(CONFIG_INT(__MAX_READ_FILE_SIZE__), CONFIG_INT(__MAX_STRING_LENGTH__));
+  std::string contents;
+  char chunk[8192];
+  while (true) {
+    const size_t count = fread(chunk, 1, sizeof(chunk), file.stream);
+    if (count > limit - contents.size())
+      raise_structured_error("io.too_large", "file_read", requested);
+    contents.append(chunk, count);
+    if (count < sizeof(chunk)) {
+      if (ferror(file.stream)) file_io_error("file_read", requested, errno ? errno : EIO);
+      break;
+    }
+  }
+  close_checked(file, "file_read", requested);
+  require_text(contents, "file_read");
+  pop_stack();
+  copy_and_push_string(contents.c_str());
+}
+#endif
+
+#ifdef F_FILE_WRITE
+void f_file_write() {
+  // Copy both arguments before calling the master: callbacks can destruct
+  // callers or otherwise run arbitrary LPC.
+  const std::string requested((sp - 1)->u.string, SVALUE_STRLEN(sp - 1));
+  const std::string contents(sp->u.string, SVALUE_STRLEN(sp));
+  require_text(contents, "file_write");
+  const std::string path = checked_file_path(requested, "file_write", true);
+  require_regular_path(path, "file_write", true, requested);
+
+  OwnedFile file;
+  static unsigned long long sequence = 0;
+  int fd = -1;
+  for (int attempt = 0; attempt < 128; ++attempt) {
+    std::string temporary = path + ".tmp." + std::to_string(getpid()) + "." +
+                            std::to_string(++sequence);
+    int flags = O_WRONLY | O_CREAT | O_EXCL;
+#ifdef O_BINARY
+    flags |= O_BINARY;
+#endif
+    fd = open(temporary.c_str(), flags, 0600);
+    if (fd >= 0) {
+      file.temporary = std::move(temporary);
+      break;
+    }
+    if (errno != EEXIST) file_io_error("file_write", requested, errno);
+  }
+  if (fd < 0) raise_structured_error("io.conflict", "No temporary filename available", requested);
+  file.stream = fdopen(fd, "wb");
+  if (!file.stream) {
+    const int saved_errno = errno;
+    close(fd);
+    file_io_error("file_write", requested, saved_errno);
+  }
+  write_complete(file.stream, contents, "file_write", requested);
+  close_checked(file, "file_write", requested);
+  std::error_code rename_error;
+  fs::rename(file.temporary, path, rename_error);
+  if (rename_error)
+    raise_structured_error("io.failure", rename_error.message(), requested);
+  file.temporary.clear();
+  pop_n_elems(2);
+}
+#endif
+
+#ifdef F_FILE_APPEND
+void f_file_append() {
+  const std::string requested((sp - 1)->u.string, SVALUE_STRLEN(sp - 1));
+  const std::string contents(sp->u.string, SVALUE_STRLEN(sp));
+  require_text(contents, "file_append");
+  const std::string path = checked_file_path(requested, "file_append", true);
+  require_regular_path(path, "file_append", true, requested);
+  OwnedFile file;
+  file.stream = fopen(path.c_str(), "ab");
+  if (!file.stream) file_io_error("file_append", requested, errno);
+  struct stat info;
+  if (fstat(fileno(file.stream), &info) != 0) file_io_error("file_append", requested, errno);
+  if (!S_ISREG(info.st_mode)) raise_structured_error("io.not_file", "file_append", requested);
+  write_complete(file.stream, contents, "file_append", requested);
+  close_checked(file, "file_append", requested);
+  pop_n_elems(2);
+}
+#endif
 
 /*
  * Credits for some of the code below goes to Free Software Foundation
@@ -669,7 +828,7 @@ const char* check_valid_path(const char* path, object_t* call_object, const char
     v = nullptr;
   }
 
-  if (v && v->type == T_NUMBER && v->u.number == 0) {
+  if (v && (IS_ZERO(v) || v->type == T_ERROR)) {
     return nullptr;
   }
   /* An async valid_read()/valid_write() hands back a promise the instant its

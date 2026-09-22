@@ -213,6 +213,7 @@ struct lpc_coroutine_acatch_t {
   int pc_offset; /* continuation (code after the region), relative to prog->program */
   int sp_offset; /* value-stack top at region entry, relative to fp */
   struct defer_list* defers;
+  bool structured = false;
 #ifdef DEBUG
   /* The frame's recorded foreach-temporaries count (control_stack_t::
    * save_temporaries), relative to the BODY's base -- relative for exactly

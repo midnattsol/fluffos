@@ -4195,7 +4195,7 @@ static const yy_state_type yy_NUL_trans[327] =
 #include "compiler/internal/compiler.h"
 #include "compiler/internal/lexer.h"
 #include "compiler/internal/grammar_rules.h"
-#include "compiler/internal/grammar.autogen.h"
+#include <grammar.autogen.h>
 #include "compiler/internal/lexer_rules.h"
 #include "compiler/internal/lexer_rules_pp.h"
 #include "efuns.autogen.h"
@@ -7539,5 +7539,4 @@ void lpc_lex_reset(void *yyscanner) {
   lpc_lex_reset_context(reinterpret_cast<compiler_context_t *>(yyget_extra(yyscanner)));
 }
 
-
-/* FluffOS generated-from lexer.l sha256=f8d899fba7bf2e1167686cafb35ca00431cc62255b6094cc5c4468fc3cf363ac */
+/* FluffOS generated-from lexer.l sha256=34799479aa08ca9691da8fbdda460d4e364f4598d7e4cf1d1afe999c6d641c96 */

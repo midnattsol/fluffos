@@ -132,6 +132,15 @@ object load_object find_object(string, int default: 1);
 mapping allocate_mapping(int | mixed *, void | mixed);
 mixed *values(mapping);
 mixed *keys(mapping);
+int mapping_has(mapping, mixed);
+mixed json_decode(string | buffer);
+mapping json_decode_object(string | buffer);
+string json_encode(mixed);
+int booleanp(mixed);
+int json_nullp(mixed);
+error_value make_error(string, string, void | mapping, void | mixed);
+int errorp(mixed);
+mapping error_info(mixed);
 void map_delete(mapping, mixed);
 
 mixed match_path(mapping, string);
@@ -171,6 +180,9 @@ int crc32(string OR_BUFFER);
 mixed read_buffer(string | buffer, void | int, void | int);
 int write_buffer(string | buffer, int, string | buffer | int);
 int write_file(string, string, int default:0);
+string file_read(string);
+void file_write(string, string);
+void file_append(string, string);
 int rename(string, string);
 int write_bytes(string, int, string);
 

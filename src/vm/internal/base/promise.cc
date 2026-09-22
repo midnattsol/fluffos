@@ -1,4 +1,5 @@
 #include "base/std.h"
+#include "packages/core/errors.h"
 
 #include "vm/internal/base/machine.h"
 
@@ -791,6 +792,7 @@ control_stack_t* find_acatch_marker(control_stack_t* floor_csp) {
  * state must be reset on the error path too). When restore_context() grows
  * another such reset, it belongs here as well. */
 char* unwind_to_acatch_marker(control_stack_t* marker) {
+  const bool structured = marker->framekind & FRAME_STRUCTURED_CATCH;
   /* Latch the caught value BEFORE anything below runs LPC. pop_control_stack()
    * invokes the frame's defer() handlers, and do_catch() assigns const1 to
    * catch_value on ENTRY -- so a handler containing any catch(...) wipes the
@@ -845,6 +847,7 @@ char* unwind_to_acatch_marker(control_stack_t* marker) {
 
   STACK_INC;
   *sp = caught;
+  if (structured) normalize_caught_error(sp, true);
   return pc;
 }
 
@@ -1245,7 +1248,7 @@ void resume_coroutine(lpc_coroutine_t* coro, promise_t* source) {
   int const marker_base = (resumed_temp_base >= 0) ? resumed_temp_base : stack_in_use_as_temporary;
 #endif
   for (auto& m : coro->markers) {
-    push_control_stack(FRAME_CATCH | FRAME_ASYNC);
+    push_control_stack(FRAME_CATCH | FRAME_ASYNC | (m.structured ? FRAME_STRUCTURED_CATCH : 0));
 #ifdef DEBUG
     /* push_control_stack() recorded the count as it is NOW -- with this
      * body's temporaries already back on it -- which is not what the region
@@ -1967,7 +1970,7 @@ void run_async_function(char* entry_pc, const function_t* funp) {
   /* The promise value carries its declared payload type in the svalue's
    * subtype, taken from the coroutine's declared return type -- promise<T>
    * for an `async T f()`. See promise_value_subtype(). */
-  unsigned short const value_type = promise_value_subtype(promise_of_type(funp->type));
+  uint32_t const value_type = promise_value_subtype(promise_of_type(funp->type));
   promise_t* p = promise_alloc();
   /* also recorded on the promise itself, so paths that build a fresh
    * svalue for it (async_info()'s mapping) can restore the annotation */
@@ -2129,6 +2132,7 @@ void coroutine_await_pending(promise_t* awaited) {
   for (control_stack_t* f = async_frame + 1; f <= csp; f++) {
     lpc_coroutine_acatch_t m{static_cast<int>(f->pc - current_prog->program),
                              static_cast<int>(f->save_sp - fp), f->defers};
+    m.structured = f->framekind & FRAME_STRUCTURED_CATCH;
 #ifdef DEBUG
     /* see the field's comment: carried relative to the body's base */
     m.temporaries_offset = f->save_temporaries - g_coroutine_temp_base;

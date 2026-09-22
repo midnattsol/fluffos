@@ -1,0 +1,43 @@
+#include <tests.h>
+
+void uncaught_error() { throw(make_error("uncaught.example", "Expected uncaught native error")); }
+void finished_uncaught() { RELEASE_LATCH("uncaught native error cleanup"); }
+
+void do_tests() {
+  mapping context = ([ "nested": ([ "value": 1 ]) ]);
+  mixed failure = make_error("data.invalid", "Invalid data", context);
+  mapping info;
+  mixed caught;
+  ASSERT(errorp(failure));
+  ASSERT(!mapp(failure));
+  ASSERT_EQ("error", typeof(failure));
+  context["nested"]["value"] = 2;
+  info = error_info(failure);
+  ASSERT_EQ(1, info["context"]["nested"]["value"]);
+  info["context"]["nested"]["value"] = 3;
+  ASSERT_EQ(1, error_info(failure)["context"]["nested"]["value"]);
+  ASSERT_EQ("data.invalid", info["code"]);
+  ASSERT(json_nullp(info["cause"]));
+  ASSERT(arrayp(info["trace"]));
+  foreach (mapping frame in info["trace"]) {
+    ASSERT(!mapping_has(frame, "arguments"));
+    ASSERT(!mapping_has(frame, "locals"));
+  }
+  caught = catch(throw(failure));
+  ASSERT(caught == failure);
+  ASSERT(!(caught != failure));
+  ASSERT(error_info(make_error("outer", "Outer failure", ([]), failure))["cause"] == failure);
+  ASSERT(catch(error_info("not an error")));
+  ASSERT(catch(save_variable(failure)));
+  caught = catch(efun::json_decode("{"));
+  ASSERT(errorp(caught));
+  ASSERT_EQ("json.syntax", error_info(caught)["code"]);
+  ASSERT(error_info(caught)["context"]["byte"] > 0);
+  caught = catch(file_read("/data/native_errors_missing_file.txt"));
+  ASSERT(errorp(caught));
+  ASSERT_EQ("/data/native_errors_missing_file.txt", error_info(caught)["context"]["path"]);
+  "/single/master"->expect_deferred_error("uncaught.example");
+  EXPECT_LATCH("uncaught native error cleanup");
+  call_out("uncaught_error", 0);
+  call_out("finished_uncaught", 1);
+}

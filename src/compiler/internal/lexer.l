@@ -66,7 +66,7 @@
 #include "compiler/internal/compiler.h"
 #include "compiler/internal/lexer.h"
 #include "compiler/internal/grammar_rules.h"
-#include "compiler/internal/grammar.autogen.h"
+#include <grammar.autogen.h>
 #include "compiler/internal/lexer_rules.h"
 #include "compiler/internal/lexer_rules_pp.h"
 #include "efuns.autogen.h"
@@ -1243,4 +1243,3 @@ void lpc_lex_reset(void *yyscanner) {
   BEGIN(INITIAL);
   lpc_lex_reset_context(reinterpret_cast<compiler_context_t *>(yyget_extra(yyscanner)));
 }
-

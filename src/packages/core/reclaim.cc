@@ -46,6 +46,7 @@ static void check_svalue(svalue_t* v) {
         cleaned++;
       }
       break;
+    case T_ERROR:
     case T_MAPPING:
       gc_mapping(v->u.map);
       break;
