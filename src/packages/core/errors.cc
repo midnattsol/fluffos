@@ -152,14 +152,19 @@ void f_error_info() {
 }
 
 [[noreturn]] void raise_structured_error(const std::string& code, const std::string& message,
+                                         svalue_t* context) {
+  OwnedValue result;
+  make_error_value(&result.value, code, message, context, nullptr);
+  assign_svalue(&catch_value, &result.value);
+  throw_error();
+}
+
+[[noreturn]] void raise_structured_error(const std::string& code, const std::string& message,
                                          const std::string& path, size_t offset) {
   OwnedValue context;
   context.value.u.map = allocate_mapping(1);
   context.value.type = T_MAPPING;
   add_mapping_string(context.value.u.map, "path", path.c_str());
   if (offset) add_mapping_pair(context.value.u.map, "byte", offset);
-  OwnedValue result;
-  make_error_value(&result.value, code, message, &context.value, nullptr);
-  assign_svalue(&catch_value, &result.value);
-  throw_error();
+  raise_structured_error(code, message, &context.value);
 }

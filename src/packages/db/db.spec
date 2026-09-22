@@ -5,3 +5,8 @@ mixed db_exec(int, string);
 mixed *db_fetch(int, int);
 int db_rollback(int);
 string db_status(void);
+int sqlite_execute(int, string, mixed *);
+mixed *sqlite_query(int, string, mixed *, int, int);
+void sqlite_begin(int);
+void sqlite_commit(int);
+void sqlite_rollback(int);

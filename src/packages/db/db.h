@@ -1,6 +1,8 @@
 #ifndef PACKAGES_DB_H
 #define PACKAGES_DB_H
 
+#include <cstdint>
+
 #ifdef USE_POSTGRES
 #include <libpq-fe.h>
 #endif
@@ -64,11 +66,15 @@ struct db_t {
   int flags;
   db_defn_t* type;
   union dbconn_t c;
+  uint64_t generation;
+  unsigned int pending_async;
 };
 
 void db_cleanup(void);
 svalue_t* valid_database(const char* action, array_t* info);
 db_t* find_db_conn(int handle);
+uint64_t reserve_db_async(int handle);
+void complete_db_async(int handle, uint64_t generation);
 
 void mark_db_conn();
 #endif /* PACKAGES_DB_H */

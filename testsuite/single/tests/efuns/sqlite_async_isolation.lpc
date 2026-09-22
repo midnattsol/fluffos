@@ -1,0 +1,33 @@
+#include <tests.h>
+
+#if defined(__PACKAGE_DB__) && defined(__USE_SQLITE3__) && defined(__PACKAGE_ASYNC__)
+private int conn;
+private string database = "/sqlite_async_isolation.sqlite";
+
+private void finished(mixed result) {
+  ASSERT_EQ(1, result);
+  sqlite_begin(conn);
+  sqlite_rollback(conn);
+  db_close(conn);
+  conn = 0;
+  rm(database);
+  RELEASE_LATCH("sqlite async isolation");
+}
+
+void do_tests() {
+  mixed failure;
+
+  rm(database);
+  conn = db_connect("", database, "", __USE_SQLITE3__);
+  ASSERT(conn > 0);
+  if (conn <= 0) return;
+
+  EXPECT_LATCH("sqlite async isolation");
+  async_db_exec(conn, "SELECT 1", (: finished :));
+  failure = catch(sqlite_begin(conn));
+  ASSERT(errorp(failure));
+  if (errorp(failure)) ASSERT_EQ("db.async_conflict", error_info(failure)["code"]);
+}
+#else
+void do_tests() { write("SQLite async support is not enabled, skipping isolation tests...\n"); }
+#endif

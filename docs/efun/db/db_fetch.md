@@ -19,6 +19,9 @@ title: db / db_fetch
     Returns an array of columns of the named  row  upon  success  an  error
     string otherwise.
 
+For new SQLite code, use bounded `sqlite_query()` calls instead. `db_fetch()`
+is retained for compatibility with the historical `db_exec()` API.
+
 ### EXAMPLE
 
     string *res;
@@ -46,4 +49,4 @@ title: db / db_fetch
 
 ### SEE ALSO
 
-    db_exec(3), valid_database(4)
+    db_exec(3), sqlite_query(3), valid_database(4)

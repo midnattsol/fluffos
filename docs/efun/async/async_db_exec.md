@@ -37,7 +37,13 @@ title: async / async_db_exec
     this_player() inside the callback is preserved from the time the
     request was made, like call_out().
 
+For SQLite, this is a legacy SQL-text API. It cannot be queued while a
+`sqlite_begin()` transaction is active, and `sqlite_begin()` rejects while an
+async request is pending for that connection. New SQLite repository code should
+use the synchronous parameterized API and keep each transaction in one
+non-yielding LPC call.
+
 ### SEE ALSO
 
-    db_commit(3), db_exec(3), db_fetch(3), db_rollback(3), valid_database(4)
-
+    db_commit(3), db_exec(3), db_fetch(3), db_rollback(3), sqlite_begin(3),
+    sqlite_execute(3), sqlite_query(3), valid_database(4)

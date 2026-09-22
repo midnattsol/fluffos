@@ -728,6 +728,36 @@
             "id": "efun/db/db_status",
             "key": "efun/db/db_status",
             "label": "db_status"
+          },
+          {
+            "type": "doc",
+            "id": "efun/db/sqlite_begin",
+            "key": "efun/db/sqlite_begin",
+            "label": "sqlite_begin"
+          },
+          {
+            "type": "doc",
+            "id": "efun/db/sqlite_commit",
+            "key": "efun/db/sqlite_commit",
+            "label": "sqlite_commit"
+          },
+          {
+            "type": "doc",
+            "id": "efun/db/sqlite_execute",
+            "key": "efun/db/sqlite_execute",
+            "label": "sqlite_execute"
+          },
+          {
+            "type": "doc",
+            "id": "efun/db/sqlite_query",
+            "key": "efun/db/sqlite_query",
+            "label": "sqlite_query"
+          },
+          {
+            "type": "doc",
+            "id": "efun/db/sqlite_rollback",
+            "key": "efun/db/sqlite_rollback",
+            "label": "sqlite_rollback"
           }
         ]
       },

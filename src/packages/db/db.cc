@@ -67,8 +67,13 @@
 
 #include "packages/db/db.h"
 
+#include "packages/core/errors.h"
 #include "packages/core/file.h"
 #include "packages/core/outbuf.h"
+
+#include <cstring>
+#include <memory>
+#include <string>
 
 #ifdef PACKAGE_ASYNC
 #include <pthread.h>
@@ -159,6 +164,213 @@ static int SQLite3_execute(dbconn_t*, const char*);
 static array_t* SQLite3_fetch(dbconn_t*, int);
 static void SQLite3_cleanup(dbconn_t*);
 static char* SQLite3_errormsg(dbconn_t*);
+
+namespace {
+using SqliteStatement = std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)>;
+using OwnedArray = std::unique_ptr<array_t, decltype(&free_array)>;
+
+struct OwnedDbValue {
+  svalue_t value = const0;
+  ~OwnedDbValue() { free_svalue(&value, "sqlite temporary"); }
+};
+
+[[noreturn]] void sqlite_error(const char* code, const char* operation, int handle,
+                               sqlite3* connection, const char* message = nullptr) {
+  OwnedDbValue context;
+  context.value.u.map = allocate_mapping(5);
+  context.value.type = T_MAPPING;
+  add_mapping_string(context.value.u.map, "operation", operation);
+  add_mapping_pair(context.value.u.map, "handle", handle);
+  if (connection) {
+    const int extended = sqlite3_extended_errcode(connection);
+    add_mapping_pair(context.value.u.map, "sqlite_code", extended & 0xff);
+    add_mapping_pair(context.value.u.map, "sqlite_extended_code", extended);
+    add_mapping_string(context.value.u.map, "sqlite_name", sqlite3_errstr(extended & 0xff));
+  }
+  raise_structured_error(code, message ? message : sqlite3_errmsg(connection), &context.value);
+}
+
+[[noreturn]] void sqlite_parameter_error(int handle, int parameter, const char* message,
+                                         const char* type = nullptr) {
+  OwnedDbValue context;
+  context.value.u.map = allocate_mapping(3);
+  context.value.type = T_MAPPING;
+  add_mapping_pair(context.value.u.map, "handle", handle);
+  add_mapping_pair(context.value.u.map, "parameter", parameter);
+  if (type) add_mapping_string(context.value.u.map, "type", type);
+  raise_structured_error("db.invalid_parameter", message, &context.value);
+}
+
+[[noreturn]] void sqlite_limit_error(int handle, const char* kind, LPC_INT limit,
+                                     LPC_INT observed) {
+  OwnedDbValue context;
+  context.value.u.map = allocate_mapping(4);
+  context.value.type = T_MAPPING;
+  add_mapping_pair(context.value.u.map, "handle", handle);
+  add_mapping_string(context.value.u.map, "limit_kind", kind);
+  add_mapping_pair(context.value.u.map, "limit", limit);
+  add_mapping_pair(context.value.u.map, "observed", observed);
+  raise_structured_error("db.result_limit", "SQLite query result exceeded its configured limit",
+                         &context.value);
+}
+
+db_t* sqlite_connection(int handle, const char* operation) {
+  db_t* db = find_db_conn(handle);
+  if (!db) sqlite_error("db.invalid_handle", operation, handle, nullptr,
+                        "Invalid database handle");
+  if (db->type->connect != SQLite3_connect)
+    sqlite_error("db.unsupported_backend", operation, handle, nullptr,
+                 "Database handle is not a SQLite connection");
+  return db;
+}
+
+SqliteStatement sqlite_prepare_one(sqlite3* connection, int handle, const char* operation,
+                                   const svalue_t* sql) {
+  const size_t length = SVALUE_STRLEN(sql);
+  if (memchr(sql->u.string, '\0', length))
+    sqlite_error("db.invalid_statement", operation, handle, connection,
+                 "SQLite statement contains an embedded NUL byte");
+
+  sqlite3_stmt* raw = nullptr;
+  const char* tail = nullptr;
+  int status = sqlite3_prepare_v3(connection, sql->u.string, static_cast<int>(length), 0, &raw, &tail);
+  SqliteStatement statement(raw, sqlite3_finalize);
+  if (status != SQLITE_OK) sqlite_error("db.sqlite", operation, handle, connection);
+  if (!statement)
+    sqlite_error("db.invalid_statement", operation, handle, connection,
+                 "SQLite statement is empty");
+
+  const char* end = sql->u.string + length;
+  while (tail < end) {
+    sqlite3_stmt* extra_raw = nullptr;
+    const char* next = nullptr;
+    status = sqlite3_prepare_v3(connection, tail, static_cast<int>(end - tail), 0, &extra_raw, &next);
+    SqliteStatement extra(extra_raw, sqlite3_finalize);
+    if (status != SQLITE_OK) sqlite_error("db.sqlite", operation, handle, connection);
+    if (extra)
+      sqlite_error("db.invalid_statement", operation, handle, connection,
+                   "Exactly one SQLite statement is required");
+    if (next <= tail) break;
+    tail = next;
+  }
+  return statement;
+}
+
+void sqlite_bind(sqlite3* connection, sqlite3_stmt* statement, int handle, const char* operation,
+                 array_t* parameters) {
+  const int expected = sqlite3_bind_parameter_count(statement);
+  if (expected != parameters->size)
+    sqlite_parameter_error(handle, 0, "SQLite parameter count does not match placeholders");
+
+  for (int index = 0; index < expected; ++index) {
+    const int position = index + 1;
+    if (sqlite3_bind_parameter_name(statement, position))
+      sqlite_parameter_error(handle, position,
+                             "Only anonymous ? placeholders are supported");
+    const svalue_t* value = &parameters->item[index];
+    int status = SQLITE_MISUSE;
+    switch (value->type) {
+      case T_NUMBER:
+        status = value->subtype == T_UNDEFINED ? sqlite3_bind_null(statement, position) :
+                                                 sqlite3_bind_int64(statement, position,
+                                                                    value->u.number);
+        break;
+      case T_BOOLEAN:
+        status = sqlite3_bind_int(statement, position, value->u.number != 0);
+        break;
+      case T_NULL: status = sqlite3_bind_null(statement, position); break;
+      case T_REAL: status = sqlite3_bind_double(statement, position, value->u.real); break;
+      case T_STRING: {
+        const size_t length = SVALUE_STRLEN(value);
+        if (memchr(value->u.string, '\0', length) ||
+            !u8_validate(reinterpret_cast<const uint8_t*>(value->u.string), length))
+          sqlite_parameter_error(handle, position,
+                                 "SQLite text must be valid UTF-8 without embedded NUL bytes");
+        status = sqlite3_bind_text64(statement, position, value->u.string, length, SQLITE_TRANSIENT,
+                                     SQLITE_UTF8);
+        break;
+      }
+      case T_BUFFER:
+        status = sqlite3_bind_blob64(statement, position, value->u.buf->item, value->u.buf->size,
+                                     SQLITE_TRANSIENT);
+        break;
+      default:
+        sqlite_parameter_error(handle, position, "Unsupported SQLite parameter type",
+                               type_name(value->type));
+    }
+    if (status != SQLITE_OK) sqlite_error("db.sqlite", operation, handle, connection);
+  }
+}
+
+void sqlite_set_column(svalue_t* output, sqlite3_stmt* statement, int column, int handle,
+                       LPC_INT max_bytes, LPC_INT* used_bytes) {
+  switch (sqlite3_column_type(statement, column)) {
+    case SQLITE_INTEGER:
+      output->type = T_NUMBER;
+      output->subtype = 0;
+      output->u.number = sqlite3_column_int64(statement, column);
+      return;
+    case SQLITE_FLOAT:
+      output->type = T_REAL;
+      output->subtype = 0;
+      output->u.real = sqlite3_column_double(statement, column);
+      return;
+    case SQLITE_NULL:
+      *output = svalue_t{T_NULL, 0, {0}};
+      return;
+    case SQLITE_TEXT: {
+      const int length = sqlite3_column_bytes(statement, column);
+      const auto* text = sqlite3_column_text(statement, column);
+      if (length > CONFIG_INT(__MAX_STRING_LENGTH__))
+        sqlite_limit_error(handle, "string_bytes", CONFIG_INT(__MAX_STRING_LENGTH__), length);
+      if (!u8_validate(text, length))
+        sqlite_error("db.invalid_text", "query", handle, sqlite3_db_handle(statement),
+                     "SQLite returned invalid UTF-8 text");
+      if (length > max_bytes - *used_bytes)
+        sqlite_limit_error(handle, "payload_bytes", max_bytes, *used_bytes + length);
+      char* result = new_string(length, "sqlite_query text");
+      memcpy(result, text, length);
+      result[length] = '\0';
+      output->type = T_STRING;
+      output->subtype = STRING_MALLOC;
+      output->u.string = result;
+      *used_bytes += length;
+      return;
+    }
+    case SQLITE_BLOB: {
+      const int length = sqlite3_column_bytes(statement, column);
+      if (length > max_bytes - *used_bytes)
+        sqlite_limit_error(handle, "payload_bytes", max_bytes, *used_bytes + length);
+      output->u.buf = allocate_buffer(length);
+      output->type = T_BUFFER;
+      output->subtype = 0;
+      if (length) memcpy(output->u.buf->item, sqlite3_column_blob(statement, column), length);
+      *used_bytes += length;
+      return;
+    }
+  }
+  sqlite_error("db.sqlite", "query", handle, sqlite3_db_handle(statement),
+               "SQLite returned an unsupported column type");
+}
+
+void sqlite_transaction(int handle, const char* operation, const char* sql, bool active_required) {
+  valid_database(operation, &the_null_array);
+  DB_ASYNC_LOCK();
+  db_t* db = sqlite_connection(handle, operation);
+  sqlite3* connection = db->c.SQLite3.handle;
+  if (!active_required && db->pending_async)
+    sqlite_error("db.async_conflict", operation, handle, connection,
+                 "Cannot begin a SQLite transaction while asynchronous work is pending");
+  const bool active = sqlite3_get_autocommit(connection) == 0;
+  if (active != active_required)
+    sqlite_error("db.transaction_state", operation, handle, connection,
+                 active_required ? "SQLite transaction is not active" :
+                                   "SQLite transaction is already active");
+  SQLite3_cleanup(&db->c);
+  if (sqlite3_exec(connection, sql, nullptr, nullptr, nullptr) != SQLITE_OK)
+    sqlite_error("db.sqlite", operation, handle, connection);
+}
+}  // namespace
 
 static db_defn_t SQLite3 = {
     "SQLite3", SQLite3_connect, SQLite3_close, SQLite3_execute, SQLite3_fetch, NULL,
@@ -540,6 +752,146 @@ void f_db_rollback() {
 }
 #endif
 
+/* SQLite's modern API is deliberately separate from db_exec()/db_fetch().
+ * The legacy API promises a row count before fetching and therefore cannot
+ * stream a statement without either executing it twice or materializing it. */
+#ifdef F_SQLITE_EXECUTE
+void f_sqlite_execute() {
+#ifndef USE_SQLITE3
+  error("sqlite_execute() requires SQLite support.\n");
+#else
+  const int handle = (sp - 2)->u.number;
+  const svalue_t* sql = sp - 1;
+  array_t* parameters = sp->u.arr;
+
+  array_t* info = allocate_empty_array(1);
+  info->item[0].type = T_STRING;
+  info->item[0].subtype = STRING_MALLOC;
+  info->item[0].u.string = string_copy(sql->u.string, "f_sqlite_execute");
+  valid_database("sqlite_execute", info);
+
+  DB_ASYNC_LOCK();
+  db_t* db = sqlite_connection(handle, "execute");
+  SQLite3_cleanup(&db->c);
+  sqlite3* connection = db->c.SQLite3.handle;
+  auto statement = sqlite_prepare_one(connection, handle, "execute", sql);
+  if (sqlite3_column_count(statement.get()) != 0 || sqlite3_stmt_readonly(statement.get()))
+    sqlite_error("db.invalid_statement", "execute", handle, connection,
+                 "sqlite_execute() requires a write statement without result columns");
+  sqlite_bind(connection, statement.get(), handle, "execute", parameters);
+  const int status = sqlite3_step(statement.get());
+  if (status != SQLITE_DONE) sqlite_error("db.sqlite", "execute", handle, connection);
+  const sqlite3_int64 changes = sqlite3_changes64(connection);
+  pop_n_elems(3);
+  push_number(changes);
+#endif
+}
+#endif
+
+#ifdef F_SQLITE_QUERY
+void f_sqlite_query() {
+#ifndef USE_SQLITE3
+  error("sqlite_query() requires SQLite support.\n");
+#else
+  const int handle = (sp - 4)->u.number;
+  const svalue_t* sql = sp - 3;
+  array_t* parameters = (sp - 2)->u.arr;
+  const LPC_INT max_rows = (sp - 1)->u.number;
+  const LPC_INT max_bytes = sp->u.number;
+  const LPC_INT max_array = CONFIG_INT(__MAX_ARRAY_SIZE__);
+
+  if (max_rows < 0 || max_rows > max_array)
+    sqlite_limit_error(handle, "rows", max_array, max_rows);
+  if (max_bytes < 0)
+    sqlite_limit_error(handle, "payload_bytes", 0, max_bytes);
+
+  array_t* info = allocate_empty_array(1);
+  info->item[0].type = T_STRING;
+  info->item[0].subtype = STRING_MALLOC;
+  info->item[0].u.string = string_copy(sql->u.string, "f_sqlite_query");
+  valid_database("sqlite_query", info);
+
+  DB_ASYNC_LOCK();
+  db_t* db = sqlite_connection(handle, "query");
+  SQLite3_cleanup(&db->c);
+  sqlite3* connection = db->c.SQLite3.handle;
+  auto statement = sqlite_prepare_one(connection, handle, "query", sql);
+  const int columns = sqlite3_column_count(statement.get());
+  if (!sqlite3_stmt_readonly(statement.get()) || columns < 1)
+    sqlite_error("db.invalid_statement", "query", handle, connection,
+                 "sqlite_query() requires a read-only statement with result columns");
+  if (columns > max_array || (max_rows && columns > max_array / max_rows))
+    sqlite_limit_error(handle, "result_cells", max_array, max_rows * columns);
+  sqlite_bind(connection, statement.get(), handle, "query", parameters);
+
+  OwnedArray result(allocate_empty_array(max_rows), free_array);
+  LPC_INT row_count = 0;
+  LPC_INT used_bytes = 0;
+  while (true) {
+    const int status = sqlite3_step(statement.get());
+    if (status == SQLITE_DONE) break;
+    if (status != SQLITE_ROW) sqlite_error("db.sqlite", "query", handle, connection);
+    if (row_count == max_rows)
+      sqlite_limit_error(handle, "rows", max_rows, row_count + 1);
+    OwnedArray row(allocate_empty_array(columns), free_array);
+    for (int column = 0; column < columns; ++column)
+      sqlite_set_column(&row->item[column], statement.get(), column, handle, max_bytes, &used_bytes);
+    result->item[row_count].type = T_ARRAY;
+    result->item[row_count].subtype = 0;
+    result->item[row_count].u.arr = row.release();
+    ++row_count;
+  }
+
+  array_t* output;
+  if (row_count == 0) {
+    result.reset();
+    output = &the_null_array;
+  } else {
+    output = result.release();
+    if (row_count != max_rows) output = resize_array(output, row_count);
+  }
+  pop_n_elems(5);
+  push_refed_array(output);
+#endif
+}
+#endif
+
+#ifdef F_SQLITE_BEGIN
+void f_sqlite_begin() {
+#ifndef USE_SQLITE3
+  error("sqlite_begin() requires SQLite support.\n");
+#else
+  const int handle = sp->u.number;
+  sqlite_transaction(handle, "sqlite_begin", "BEGIN IMMEDIATE", false);
+  pop_stack();
+#endif
+}
+#endif
+
+#ifdef F_SQLITE_COMMIT
+void f_sqlite_commit() {
+#ifndef USE_SQLITE3
+  error("sqlite_commit() requires SQLite support.\n");
+#else
+  const int handle = sp->u.number;
+  sqlite_transaction(handle, "sqlite_commit", "COMMIT", true);
+  pop_stack();
+#endif
+}
+#endif
+
+#ifdef F_SQLITE_ROLLBACK
+void f_sqlite_rollback() {
+#ifndef USE_SQLITE3
+  error("sqlite_rollback() requires SQLite support.\n");
+#else
+  const int handle = sp->u.number;
+  sqlite_transaction(handle, "sqlite_rollback", "ROLLBACK", true);
+  pop_stack();
+#endif
+}
+#endif
+
 /* string db_status()
  *
  * Returns a string describing the database package's current status
@@ -611,14 +963,19 @@ int create_db_conn() {
       db_conn_list = RESIZE(db_conn_list, db_conn_alloc, db_t, TAG_DB, "create_db_conn");
     }
     while (i < db_conn_alloc) {
-      db_conn_list[i++].flags = DB_FLAG_EMPTY;
+      db_conn_list[i].flags = DB_FLAG_EMPTY;
+      db_conn_list[i].generation = 0;
+      db_conn_list[i].pending_async = 0;
+      ++i;
     }
   }
 
   for (i = 0; i < db_conn_alloc; i++) {
     if (db_conn_list[i].flags & DB_FLAG_EMPTY) {
+      if (++db_conn_list[i].generation == 0) ++db_conn_list[i].generation;
       db_conn_list[i].flags = 0;
       db_conn_list[i].type = &no_db;
+      db_conn_list[i].pending_async = 0;
       db_conn_used++;
       return i + 1;
     }
@@ -632,6 +989,25 @@ db_t* find_db_conn(int handle) {
     return nullptr;
   }
   return &(db_conn_list[handle - 1]);
+}
+
+uint64_t reserve_db_async(int handle) {
+  DB_ASYNC_LOCK();
+  db_t* db = find_db_conn(handle);
+  if (!db) error("Attempt to exec on an invalid database handle\n");
+#ifdef USE_SQLITE3
+  if (db->type->connect == SQLite3_connect && sqlite3_get_autocommit(db->c.SQLite3.handle) == 0)
+    sqlite_error("db.async_conflict", "async_execute", handle, db->c.SQLite3.handle,
+                 "Cannot queue asynchronous work during a SQLite transaction");
+#endif
+  ++db->pending_async;
+  return db->generation;
+}
+
+void complete_db_async(int handle, uint64_t generation) {
+  DB_ASYNC_LOCK();
+  db_t* db = find_db_conn(handle);
+  if (db && db->generation == generation && db->pending_async) --db->pending_async;
 }
 
 void free_db_conn(db_t* db) {

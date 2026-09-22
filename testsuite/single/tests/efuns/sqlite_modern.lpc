@@ -1,0 +1,109 @@
+#include <tests.h>
+
+#if defined(__PACKAGE_DB__) && defined(__USE_SQLITE3__)
+private int conn;
+private string database = "/sqlite_modern.sqlite";
+
+private void assert_error_code(mixed failure, string code) {
+  ASSERT(errorp(failure));
+  if (errorp(failure)) ASSERT_EQ(code, error_info(failure)["code"]);
+}
+
+private void run_checks() {
+  mixed *rows;
+  mixed failure;
+  mapping empty = ([]);
+  buffer blob = allocate_buffer(3);
+  string hostile = "x'); DROP TABLE values_test; --";
+
+  blob[0] = 0;
+  blob[1] = 127;
+  blob[2] = 255;
+
+  conn = db_connect("", database, "", __USE_SQLITE3__);
+  ASSERT(conn > 0);
+  if (conn <= 0) return;
+
+  sqlite_execute(conn, "CREATE TABLE values_test ("
+    "id INTEGER PRIMARY KEY, text_value TEXT UNIQUE, integer_value INTEGER, "
+    "real_value REAL, blob_value BLOB, null_value, true_value, false_value, "
+    "undefined_value)", ({}));
+  ASSERT_EQ(1, sqlite_execute(conn,
+    "INSERT INTO values_test VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ({ 1, hostile, MAX_INT, 1.25, blob, efun::json_decode("null"),
+      efun::json_decode("true"), efun::json_decode("false"), empty["missing"] })));
+
+  rows = sqlite_query(conn,
+    "SELECT text_value, integer_value, real_value, blob_value, null_value, true_value, "
+    "false_value, undefined_value FROM values_test WHERE id = ?", ({ 1 }), 1, 4096);
+  ASSERT_EQ(1, sizeof(rows));
+  ASSERT_EQ(hostile, rows[0][0]);
+  ASSERT_EQ(MAX_INT, rows[0][1]);
+  ASSERT_EQ(1.25, rows[0][2]);
+  ASSERT_EQ(blob, rows[0][3]);
+  ASSERT(json_nullp(rows[0][4]));
+  ASSERT_EQ(1, rows[0][5]);
+  ASSERT_EQ(0, rows[0][6]);
+  ASSERT(json_nullp(rows[0][7]));
+
+  failure = catch(sqlite_query(conn, "SELECT ?", ({}), 1, 16));
+  assert_error_code(failure, "db.invalid_parameter");
+  failure = catch(sqlite_query(conn, "SELECT 1", ({ 1 }), 1, 16));
+  assert_error_code(failure, "db.invalid_parameter");
+  failure = catch(sqlite_query(conn, "SELECT ?2", ({ 1, 2 }), 1, 16));
+  assert_error_code(failure, "db.invalid_parameter");
+  failure = catch(sqlite_query(conn, "SELECT 1; SELECT 2", ({}), 1, 16));
+  assert_error_code(failure, "db.invalid_statement");
+  failure = catch(sqlite_execute(conn, "SELECT 1", ({})));
+  assert_error_code(failure, "db.invalid_statement");
+  failure = catch(sqlite_query(conn,
+    "WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x + 1 FROM n WHERE x < 3) "
+    "SELECT x FROM n", ({}), 2, 32));
+  assert_error_code(failure, "db.result_limit");
+  failure = catch(sqlite_query(conn, "SELECT text_value FROM values_test", ({}), 1, 4));
+  assert_error_code(failure, "db.result_limit");
+
+  sqlite_begin(conn);
+  sqlite_execute(conn, "INSERT INTO values_test (id, text_value) VALUES (?, ?)",
+    ({ 2, "rollback" }));
+  sqlite_rollback(conn);
+  ASSERT_EQ(({}), sqlite_query(conn, "SELECT id FROM values_test WHERE id = ?", ({ 2 }), 1, 16));
+
+  sqlite_begin(conn);
+  sqlite_execute(conn, "INSERT INTO values_test (id, text_value) VALUES (?, ?)",
+    ({ 3, "commit" }));
+  sqlite_commit(conn);
+  ASSERT_EQ(({ ({ 3 }) }),
+    sqlite_query(conn, "SELECT id FROM values_test WHERE id = ?", ({ 3 }), 1, 16));
+
+  failure = catch(sqlite_commit(conn));
+  assert_error_code(failure, "db.transaction_state");
+  sqlite_begin(conn);
+  failure = catch(sqlite_begin(conn));
+  assert_error_code(failure, "db.transaction_state");
+  sqlite_rollback(conn);
+
+  sqlite_begin(conn);
+  failure = catch(sqlite_execute(conn,
+    "INSERT INTO values_test (id, text_value) VALUES (?, ?)", ({ 4, hostile })));
+  assert_error_code(failure, "db.sqlite");
+  if (errorp(failure)) {
+    mapping info = error_info(failure);
+    ASSERT_EQ("execute", info["context"]["operation"]);
+    ASSERT(info["context"]["sqlite_code"] > 0);
+    ASSERT(strsrch(sprintf("%O", info), hostile) == -1);
+  }
+  sqlite_rollback(conn);
+
+  ASSERT_EQ(({ ({ 1 }) }), sqlite_query(conn, "SELECT 1", ({}), 1, 16));
+}
+
+void do_tests() {
+  rm(database);
+  run_checks();
+  if (conn > 0) catch(db_close(conn));
+  rm(database);
+}
+#else
+void do_tests() { write("SQLite is not enabled, skipping modern SQLite tests...\n"); }
+#endif

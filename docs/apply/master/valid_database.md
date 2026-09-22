@@ -19,10 +19,10 @@ title: master / valid_database
     succeed.  The first argument 'caller' is the  object  that  called  the
     database  efunction.   The  second argument is the name of the database
     efunction that is being called (e.g. db_connect() or db_commit()).  The
-    third  argument,  if applicable, is an array of additional information.
-    Currently this is used for efun::db_connect with  the  form  ({  string
-    database,  string  host, string user }) and for efund::dh_exec with the
-    form ({ string sql_query })
+    third argument, if applicable, is an array of additional information.
+    db_connect uses ({ string database, string host, string user }). db_exec,
+    sqlite_execute, and sqlite_query use ({ string sql_query }). Transaction,
+    fetch, close, and status operations pass an empty array.
 
     Returns 0 if the use of the efun is to be disallowed, for efun::db_con‐
     nect  it  should  return  the password to be used for the connect and 1
@@ -31,4 +31,3 @@ title: master / valid_database
 ### SEE ALSO
 
     db_connect(3), db_exec(3)
-

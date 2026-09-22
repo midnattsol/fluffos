@@ -50,6 +50,7 @@ struct Request {
   int flags;
   int ret;
   int handle;
+  uint64_t db_generation = 0;
   std::string data;
   function_to_call_t* fun; /* callback form; null in the promise form */
   /* Promise form (issue #1319): settled at delivery instead of calling a
@@ -251,8 +252,9 @@ void* dbexecthread(struct Request* req) {
   pthread_mutex_lock(db_mut);
   // see add_db_exec
   db_t* db = find_db_conn(req->handle);
+  const bool current_generation = db && db->generation == req->db_generation;
   int ret = -1;
-  if (db && db->type->execute) {
+  if (current_generation && db->type->execute) {
     if (db->type->cleanup) {
       db->type->cleanup(&(db->c));
     }
@@ -268,7 +270,7 @@ void* dbexecthread(struct Request* req) {
       }
     }
   } else {
-    req->path = std::string("No database exec function!");
+    req->path = std::string("Database handle was closed before async execution");
   }
   pthread_mutex_unlock(db_mut);
 
@@ -400,13 +402,15 @@ int add_write(const char* fname, const char* buf, int size, char flags, function
 }
 
 #ifdef F_ASYNC_DB_EXEC
-int add_db_exec(int handle, const char* sql, function_to_call_t* fun, array_t* bound_args) {
+int add_db_exec(int handle, uint64_t generation, const char* sql, function_to_call_t* fun,
+                array_t* bound_args) {
   auto* req = new Request();
   req->fun = fun;
   req->bound_args = bound_args;
   req->type = ADBEXEC;
   capture_command_giver(req);
   req->handle = handle;
+  req->db_generation = generation;
   req->data = sql;
   return aio_db_exec(req);
 }
@@ -483,6 +487,7 @@ void handle_write(struct Request* req) {
 }
 
 void handle_db_exec(struct Request* req) {
+  complete_db_async(req->handle, req->db_generation);
   int const val = req->ret;
   if (val == -1) {
     copy_and_push_string(req->path.c_str());
@@ -742,19 +747,14 @@ void f_async_db_exec() {
   info->item[0].u.string = string_copy(sp->u.string, "f_db_exec");
   valid_database("exec", info);
 
-  db_t* db;
-  db = find_db_conn((sp - 1)->u.number);
-  if (!db) {
-    error("Attempt to exec on an invalid database handle\n");
-  }
-
   if (!db_mut) {
     db_mut = (pthread_mutex_t*)DMALLOC(sizeof(pthread_mutex_t), TAG_PERMANENT, "async_db_exec");
     pthread_mutex_init(db_mut, nullptr);
   }
+  const uint64_t generation = reserve_db_async((sp - 1)->u.number);
   handed_off = true;
   bound_args_handed_off = true;
-  add_db_exec((sp - 1)->u.number, sp->u.string, cb.release(), bound_args);
+  add_db_exec((sp - 1)->u.number, generation, sp->u.string, cb.release(), bound_args);
   pop_2_elems();
 }
 #endif
