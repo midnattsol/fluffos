@@ -186,6 +186,11 @@ void init_locale() {
                   current_locale.c_str());
   }
 #endif
+  // Only the character encoding comes from the environment. Everything else
+  // stays "C" so results do not vary by host: a decimal comma would change
+  // float literals, save files and the MAX_FLOAT predefine.
+  setlocale(LC_ALL, "C");
+  setlocale(LC_CTYPE, "");
 }
 
 void init_tz() {

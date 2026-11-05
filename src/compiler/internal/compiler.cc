@@ -3035,9 +3035,12 @@ program_t* compile_file(std::string_view source, const char* name, vm_context_t*
 
   {
     // make sure we use the C locale during parsing
-    auto* current_locale = setlocale(LC_ALL, "C");
+    // setlocale(LC_ALL, "C") returns the NEW locale, and the query's result is
+    // only valid until the next call: copy the old one out first.
+    const std::string current_locale = setlocale(LC_ALL, nullptr);
+    setlocale(LC_ALL, "C");
     DEFER {
-      setlocale(LC_ALL, current_locale);
+      setlocale(LC_ALL, current_locale.c_str());
 
       // Clean up parser if compile aborted via C++ Exception
       if (std::uncaught_exceptions() > 0) {
