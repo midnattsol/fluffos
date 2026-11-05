@@ -220,3 +220,15 @@ if (NODE_EXECUTABLE AND OPENSSL_EXECUTABLE)
           LABELS "websocket"
           RESOURCE_LOCK "fluffos_external_ports")
 endif ()
+
+# Behaviour only a real connection and a real process can show: process_input
+# over telnet, file modes on disk, the exit status after a signal. Runs its own
+# small mudlib on a free port, so it needs no resource lock.
+if (NODE_EXECUTABLE AND UNIX)
+  add_test(NAME driver-behaviour
+          COMMAND "${NODE_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/driver-behaviour.js"
+                  $<TARGET_FILE:driver>)
+  set_tests_properties(driver-behaviour PROPERTIES
+          TIMEOUT 120
+          LABELS "behaviour")
+endif ()
