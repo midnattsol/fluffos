@@ -668,13 +668,17 @@ int posix_spawn_fast(pid_t* pid, const char* path,
   if (posix_spawnattr_init(&attr) != 0) {
     return posix_spawn(pid, path, file_actions, nullptr, argv, envp);
   }
-  short flags = 0;
+  // libevent's signalfd backend keeps the driver's shutdown signals BLOCKED,
+  // and a signal mask survives exec. A child must start with a clean mask or
+  // external_kill()'s SIGTERM stays pending forever and it outlives its owner.
+  short flags = POSIX_SPAWN_SETSIGMASK;
+  sigset_t child_mask;
+  sigemptyset(&child_mask);
+  posix_spawnattr_setsigmask(&attr, &child_mask);
 #ifdef POSIX_SPAWN_USEVFORK
   flags |= POSIX_SPAWN_USEVFORK;
 #endif
-  if (flags != 0) {
-    posix_spawnattr_setflags(&attr, flags);
-  }
+  posix_spawnattr_setflags(&attr, flags);
   int const ret = posix_spawn(pid, path, file_actions, &attr, argv, envp);
   posix_spawnattr_destroy(&attr);
   return ret;
