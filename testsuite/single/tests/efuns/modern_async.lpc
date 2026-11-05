@@ -11,7 +11,8 @@ async void capture_rejection() {
   try {
     await rejected;
     ASSERT(0);
-  } catch (caught) {
+  }
+  catch(caught) {
     ASSERT(errorp(caught));
     ASSERT_EQ(0, error_info(caught)["context"]["value"]);
   }

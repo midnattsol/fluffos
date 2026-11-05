@@ -20,7 +20,7 @@ int whatever3(mixed x, mixed y, mixed z) {
   return z;
 }
 
-int true() { return 1; }
+int true () { return 1; }
 
 int same(mixed *x, mixed *y) {
   if (sizeof(x) != sizeof(y)) return 0;

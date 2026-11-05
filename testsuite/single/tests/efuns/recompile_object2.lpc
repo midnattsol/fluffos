@@ -116,7 +116,7 @@ private void run_checks() {
   SAVETP;
   ob->arm();
   RESTORETP;
-  ASSERT(ob->try());
+  ASSERT(ob->try ());
   ASSERT_EQ(1, ob->q());
   ASSERT_EQ(1, query_heart_beat(ob));
   write_src(DIR + "/act.lpc",
@@ -129,7 +129,7 @@ private void run_checks() {
     "void heart_beat() { }\n");
   ASSERT_EQ(1, recompile_object(ob));
   ASSERT_EQ(1, query_heart_beat(ob));          // registration survived
-  ASSERT(ob->try());                           // v1's sentence still fires...
+  ASSERT(ob->try ());                           // v1's sentence still fires...
   ASSERT_EQ(11, ob->q());                      // ... into v2 code, state kept
 #endif
 }
