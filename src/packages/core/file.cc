@@ -153,6 +153,10 @@ void f_file_write() {
   const std::string path = checked_file_path(requested, "file_write", true);
   require_regular_path(path, "file_write", true, requested);
 
+  // A replacement keeps the mode of the file it replaces; a new file gets the
+  // same umask-derived mode write_file() would give it.
+  struct stat existing;
+  const bool replacing = ::stat(path.c_str(), &existing) == 0;
   OwnedFile file;
   static unsigned long long sequence = 0;
   int fd = -1;
@@ -163,7 +167,7 @@ void f_file_write() {
 #ifdef O_BINARY
     flags |= O_BINARY;
 #endif
-    fd = open(temporary.c_str(), flags, 0600);
+    fd = open(temporary.c_str(), flags, replacing ? 0600 : 0666);
     if (fd >= 0) {
       file.temporary = std::move(temporary);
       break;
@@ -178,6 +182,14 @@ void f_file_write() {
     file_io_error("file_write", requested, saved_errno);
   }
   write_complete(file.stream, contents, "file_write", requested);
+#ifndef _WIN32
+  if (replacing && fchmod(fileno(file.stream), existing.st_mode & 07777) != 0) {
+    file_io_error("file_write", requested, errno);
+  }
+  // Publish only flushed data: a rename that reaches the disk before the
+  // contents is what leaves an empty file after a crash.
+  if (fsync(fileno(file.stream)) != 0) file_io_error("file_write", requested, errno);
+#endif
   close_checked(file, "file_write", requested);
   std::error_code rename_error;
   fs::rename(file.temporary, path, rename_error);
