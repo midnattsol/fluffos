@@ -186,9 +186,6 @@ void f_file_write() {
   if (replacing && fchmod(fileno(file.stream), existing.st_mode & 07777) != 0) {
     file_io_error("file_write", requested, errno);
   }
-  // Publish only flushed data: a rename that reaches the disk before the
-  // contents is what leaves an empty file after a crash.
-  if (fsync(fileno(file.stream)) != 0) file_io_error("file_write", requested, errno);
 #endif
   close_checked(file, "file_write", requested);
   std::error_code rename_error;

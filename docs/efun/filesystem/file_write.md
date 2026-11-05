@@ -16,17 +16,15 @@ UTF-8, directories, and symbolic-link destinations are rejected.
 
 The driver checks `valid_write` using the operation name `file_write`. It creates
 an exclusive temporary file alongside the approved destination, writes and
-flushes and closes it, then renames it over the destination. Temporary files
+closes it, then renames it over the destination. Temporary files
 are removed on failure. Parent directories must already exist. On POSIX, a
 replacement keeps the mode of the file it replaces and a new file gets the same
 umask-derived mode `write_file` would give it; ownership and hard-link
 relationships are not preserved.
 
-Readers see the previous or new file, not partially published content. The
-contents are flushed to disk before the rename, so a crash does not publish an
-empty file, but the rename itself may be lost to a power failure. The flush
-blocks the driver until the disk answers. This is not a transaction across
-multiple files. Concurrent writers use last-successful-replacement semantics.
+Readers see the previous or new file, not partially published content. This is
+not a transaction across multiple files and does not promise durability across
+power loss. Concurrent writers use last-successful-replacement semantics.
 
 Failures throw native errors with `io.*` codes and context for path-related
 failures. Capture them with modern `try`/`catch` or the legacy `catch` expression.
