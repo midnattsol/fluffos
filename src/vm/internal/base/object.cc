@@ -113,6 +113,9 @@ static bool get_restore_size(int* out) {
 int svalue_save_size(svalue_t* v) {
   switch (v->type) {
     case T_ERROR:
+      // Same reset as the depth-cap errors below: this global is also the
+      // next restore's sizes[] index, and the throw skips every decrement.
+      save_svalue_depth = 0;
       error("Native errors are transient values; serialize error_info() explicitly.\n");
     case T_BOOLEAN:
       return v->u.number ? 5 : 6;
@@ -1541,6 +1544,13 @@ static int save_object_recurse(program_t* prog, svalue_t** svp, int type, int sa
   }
   oldSize = -1;
   new_str = nullptr;
+  // svalue_save_size() can throw, and the buffer may be left from an earlier
+  // variable by then.
+  DEFER {
+    if (new_str) {
+      FREE(new_str);
+    }
+  };
   for (i = 0; i < prog->num_variables_defined; i++) {
     if (prog->variable_types[i] & DECL_NOSAVE) {
       (*svp)++;
@@ -1578,13 +1588,9 @@ static int save_object_recurse(program_t* prog, svalue_t** svp, int type, int sa
       }
       if (result < 0) {
         debug_perror("save_object: printf", nullptr);
-        FREE(new_str);
         return 0;
       }
     }
-  }
-  if (new_str) {
-    FREE(new_str);
   }
   return textsize;
 }
@@ -1619,6 +1625,13 @@ static int save_object_recurse_str(program_t* prog, svalue_t** svp, int type, in
   }
   oldSize = -1;
   new_str = nullptr;
+  // svalue_save_size() can throw, and the buffer may be left from an earlier
+  // variable by then.
+  DEFER {
+    if (new_str) {
+      FREE(new_str);
+    }
+  };
   for (i = 0; i < prog->num_variables_defined; i++) {
     if (prog->variable_types[i] & DECL_NOSAVE) {
       (*svp)++;
@@ -1646,16 +1659,12 @@ static int save_object_recurse_str(program_t* prog, svalue_t** svp, int type, in
     if (save_zeros || new_str[0] != '0' || new_str[1] != 0) { /* Armidale */
       if (sprintf(buf + textsize - 1, "%s %s\n", prog->variable_table[i], new_str) < 0) {
         debug_perror("save_object: fprintf", nullptr);
-        FREE(new_str);
         return 0;
       }
       textsize += theSize;
       textsize += strlen(prog->variable_table[i]);
       textsize++;
     }
-  }
-  if (new_str) {
-    FREE(new_str);
   }
   return textsize;
 }
@@ -1744,6 +1753,23 @@ int save_object(object_t* ob, const char* file, int save_zeros) {
 
   gzf = nullptr;
   f = nullptr;
+  // Everything from here on can throw (a value that cannot be saved, a nesting
+  // cap). The handles are cleared on the normal path; on a throw this closes
+  // them and removes the partial file.
+  bool finished = false;
+  DEFER {
+#ifdef HAVE_ZLIB
+    if (gzf) {
+      gzclose(gzf);
+    }
+#endif
+    if (f) {
+      fclose(f);
+    }
+    if (!finished) {
+      std::remove(tmp_name);
+    }
+  };
 #ifdef HAVE_ZLIB
   if (save_compressed) {
     gzf = gzopen(tmp_name, "wb");
@@ -1765,16 +1791,25 @@ int save_object(object_t* ob, const char* file, int save_zeros) {
   success = save_object_recurse(ob->prog, &v, 0, save_zeros, f, gzf);
 
 #ifdef HAVE_ZLIB
-  if (gzf && gzclose(gzf)) {
-    debug_perror("save_object", file);
-    success = 0;
+  if (gzf) {
+    auto* const closing = gzf;
+    gzf = nullptr;
+    if (gzclose(closing)) {
+      debug_perror("save_object", file);
+      success = 0;
+    }
   }
 #endif
 
-  if (f && fclose(f) < 0) {
-    debug_perror("save_object", file);
-    success = 0;
+  if (f) {
+    auto* const closing = f;
+    f = nullptr;
+    if (fclose(closing) < 0) {
+      debug_perror("save_object", file);
+      success = 0;
+    }
   }
+  finished = true;
 
   if (!success) {
     debug_message("Failed to completely save file. Disk could be full.\n");
