@@ -92,6 +92,7 @@ class EGCSmartIterator : public EGCIterator {
     current_idx_ = 0;
     count_ = -1;
     ascii_pos_ = 0;
+    u8_pos_ = 0;
   }
   size_t count() {
     if (count_ == -1) {
@@ -109,6 +110,15 @@ class EGCSmartIterator : public EGCIterator {
         ascii_pos_ = len();
         return count_;
       }
+      if (is_single_codepoint()) {
+        count_ = 0;
+        for (int32_t i = 0; i < len(); i++) {
+          count_ += (static_cast<unsigned char>(data()[i]) & 0xC0) != 0x80;
+        }
+        current_idx_ = count_;
+        u8_pos_ = len();
+        return count_;
+      }
       count_ = 0;
       brk_->first();
       while (brk_->next() != icu::BreakIterator::DONE) ++count_;
@@ -124,6 +134,13 @@ class EGCSmartIterator : public EGCIterator {
       int32_t off = index >= 0 ? index : len() + index;
       if (off < 0 || off > len()) return icu::BreakIterator::DONE;
       ascii_pos_ = off;
+      current_idx_ = index;
+      return off;
+    }
+    if (is_single_codepoint()) {
+      const int32_t off = single_codepoint_offset(index);
+      if (off == icu::BreakIterator::DONE) return off;  // cursor unchanged, as ICU
+      u8_pos_ = off;
       current_idx_ = index;
       return off;
     }
@@ -170,6 +187,13 @@ class EGCSmartIterator : public EGCIterator {
       }
       return pos + 1;  // cursor stays at pos, as next()+previous() leaves it
     }
+    if (is_single_codepoint()) {
+      if (pos >= len()) {  // same next()+previous() side effect as above
+        u8_pos_ = step_back(len());
+        return icu::BreakIterator::DONE;
+      }
+      return step_forward(pos);
+    }
     pos = brk_->next();
     brk_->previous();
     return pos;
@@ -180,12 +204,20 @@ class EGCSmartIterator : public EGCIterator {
       ascii_pos_ = 0;
       return 0;
     }
+    if (is_single_codepoint()) {
+      u8_pos_ = 0;
+      return 0;
+    }
     return brk_->first();
   }
   int32_t last() {
     current_idx_ = -1;
     if (is_ascii()) {
       ascii_pos_ = len();
+      return len();
+    }
+    if (is_single_codepoint()) {
+      u8_pos_ = len();
       return len();
     }
     return brk_->last();
@@ -195,6 +227,12 @@ class EGCSmartIterator : public EGCIterator {
       if (ascii_pos_ >= len()) return icu::BreakIterator::DONE;  // cursor unchanged
       current_idx_++;
       return ++ascii_pos_;
+    }
+    if (is_single_codepoint()) {
+      if (u8_pos_ >= len()) return icu::BreakIterator::DONE;  // cursor unchanged
+      current_idx_++;
+      u8_pos_ = step_forward(u8_pos_);
+      return u8_pos_;
     }
     auto oldpos = brk_->current();
     auto pos = brk_->next();
@@ -207,9 +245,43 @@ class EGCSmartIterator : public EGCIterator {
   }
 
  private:
+  // Only valid in single-codepoint mode, where every lead byte is 1 or 2 long.
+  [[nodiscard]] int32_t step_forward(int32_t pos) const {
+    return pos + (static_cast<unsigned char>(data()[pos]) < 0x80 ? 1 : 2);
+  }
+  [[nodiscard]] int32_t step_back(int32_t pos) const {
+    pos--;
+    if ((static_cast<unsigned char>(data()[pos]) & 0xC0) == 0x80) pos--;
+    return pos;
+  }
+  // The boundary an index names: 0..count forward, -1..-count from the end,
+  // DONE outside that, matching the ICU walk below.
+  [[nodiscard]] int32_t single_codepoint_offset(int32_t index) const {
+    if (index >= 0) {
+      int32_t pos = 0;
+      int32_t at = 0;
+      if (current_idx_ >= 0 && current_idx_ <= index) {  // continue from the cursor
+        pos = u8_pos_;
+        at = current_idx_;
+      }
+      for (; at < index; at++) {
+        if (pos >= len()) return icu::BreakIterator::DONE;
+        pos = step_forward(pos);
+      }
+      return pos;
+    }
+    int32_t pos = len();
+    for (int32_t at = 0; at > index; at--) {
+      if (pos <= 0) return icu::BreakIterator::DONE;
+      pos = step_back(pos);
+    }
+    return pos;
+  }
+
   int32_t current_idx_ = 0;
   int32_t count_ = -1;
   int32_t ascii_pos_ = 0;  // byte offset cursor, ASCII fast path only
+  int32_t u8_pos_ = 0;     // byte offset cursor, single-codepoint fast path only
 };
 
 // Is this string pure ASCII (and CR-free), i.e. does byte offset equal

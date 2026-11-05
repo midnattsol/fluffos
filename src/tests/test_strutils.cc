@@ -1,4 +1,6 @@
 #include <gtest/gtest.h>
+#include <memory>
+#include <random>
 #include <string>
 #include <vector>
 #include "base/std.h"
@@ -462,4 +464,125 @@ TEST(MstrAsciiTag, StringUnlinkProducesADefinedTag) {
   EXPECT_TRUE(u8_string_is_ascii_cached(acopy, 3, true));
   FREE_MSTR(acopy);
   FREE_MSTR(a);
+}
+
+// Strings of code points below U+0300 skip ICU entirely, so ICU itself is the
+// reference: every answer has to match its real boundaries.
+namespace {
+std::vector<int32_t> icu_boundaries(const std::string& text) {
+  UErrorCode status = U_ZERO_ERROR;
+  std::unique_ptr<icu::BreakIterator> brk(
+      icu::BreakIterator::createCharacterInstance(icu::Locale::getDefault(), status));
+  EXPECT_TRUE(U_SUCCESS(status));
+  UText utext = UTEXT_INITIALIZER;
+  utext_openUTF8(&utext, text.data(), static_cast<int64_t>(text.size()), &status);
+  brk->setText(&utext, status);
+  std::vector<int32_t> result;
+  for (int32_t pos = brk->first(); pos != icu::BreakIterator::DONE; pos = brk->next()) {
+    result.push_back(pos);
+  }
+  utext_close(&utext);
+  return result;
+}
+
+int32_t expected_offset(const std::vector<int32_t>& boundaries, int32_t index) {
+  const auto clusters = static_cast<int32_t>(boundaries.size()) - 1;
+  if (index >= 0) return index <= clusters ? boundaries[index] : icu::BreakIterator::DONE;
+  return -index <= clusters ? boundaries[clusters + index] : icu::BreakIterator::DONE;
+}
+
+std::string random_latin(std::mt19937& rng) {
+  static const std::vector<std::string> pieces = {
+      "a",      "Z",      " ",      "\n",     "\t",     "0",
+      "\x7f",   "\xc2\x80", "\xc2\x85", "\xc2\xa1", "\xc2\xad", "\xc3\xa9",
+      "\xc3\xb1", "\xc4\x80", "\xca\xb0", "\xcb\xbf"};  // ... U+02FF, the last in range
+  std::string text;
+  const int length = 1 + static_cast<int>(rng() % 12);
+  for (int i = 0; i < length; i++) text += pieces[rng() % pieces.size()];
+  return text;
+}
+}  // namespace
+
+TEST(EGCLatinFastPath, ChoosesTheTierByContent) {
+  EGCSmartIterator latin("a\xc3\xb1", 3);
+  EXPECT_TRUE(latin.ok());
+  EXPECT_FALSE(latin.is_ascii());
+  EXPECT_TRUE(latin.is_single_codepoint());
+
+  for (const std::string text : {std::string("a\xcc\x81"),         // U+0301 combining mark
+                                 std::string("\xe4\xbd\xa0"),      // CJK
+                                 std::string("\xc3\xb1\r\n"),      // CRLF is one cluster
+                                 std::string("\xc3"),               // truncated
+                                 std::string("\xc3 "),              // bad continuation
+                                 std::string("\xc0\x80")}) {        // overlong
+    EGCSmartIterator other(text.data(), static_cast<int32_t>(text.size()));
+    EXPECT_FALSE(other.is_single_codepoint()) << text;
+  }
+}
+
+TEST(EGCLatinFastPath, EveryCodePointBelowCombiningMarksIsItsOwnCluster) {
+  for (UChar32 c = 0x80; c < 0x300; c++) {
+    std::string text = "x";
+    char encoded[U8_MAX_LENGTH];
+    int32_t size = 0;
+    U8_APPEND_UNSAFE(encoded, size, c);
+    text.append(encoded, size);
+    text += "y";
+    text.append(encoded, size);
+    EXPECT_EQ(5u, icu_boundaries(text).size()) << "U+" << std::hex << c;
+    EGCSmartIterator iter(text.data(), static_cast<int32_t>(text.size()));
+    EXPECT_TRUE(iter.is_single_codepoint());
+    EXPECT_EQ(4u, iter.count());
+  }
+}
+
+TEST(EGCLatinFastPath, MatchesIcuOnRandomInput) {
+  std::mt19937 rng(20261105);
+  for (int round = 0; round < 3000; round++) {
+    const std::string text = random_latin(rng);
+    const auto length = static_cast<int32_t>(text.size());
+    const auto boundaries = icu_boundaries(text);
+    const auto clusters = static_cast<int32_t>(boundaries.size()) - 1;
+
+    EGCSmartIterator counted(text.data(), length);
+    if (counted.is_ascii()) continue;
+    ASSERT_TRUE(counted.is_single_codepoint());
+    ASSERT_EQ(static_cast<size_t>(clusters), counted.count()) << text;
+    ASSERT_EQ(icu::BreakIterator::DONE, counted.next());
+
+    // Fresh iterator per index, then one iterator reused in random order so the
+    // cursor shortcut is exercised too.
+    EGCSmartIterator reused(text.data(), length);
+    for (int i = 0; i < 40; i++) {
+      const int32_t index = static_cast<int32_t>(rng() % (2 * clusters + 7)) - clusters - 3;
+      const int32_t expected = expected_offset(boundaries, index);
+      EGCSmartIterator fresh(text.data(), length);
+      ASSERT_EQ(expected, fresh.index_to_offset(index)) << text << " @" << index;
+      ASSERT_EQ(expected, reused.index_to_offset(index)) << text << " @" << index;
+
+      EGCSmartIterator post(text.data(), length);
+      int32_t expected_post = expected;
+      if (expected >= 0) {
+        expected_post = expected >= length ? icu::BreakIterator::DONE
+                                           : expected_offset(boundaries, index >= 0 ? index + 1 : clusters + index + 1);
+      }
+      ASSERT_EQ(expected_post, post.post_index_to_offset(index)) << text << " @" << index;
+    }
+
+    EGCSmartIterator walk(text.data(), length);
+    ASSERT_EQ(0, walk.first());
+    for (int32_t i = 1; i <= clusters; i++) ASSERT_EQ(boundaries[i], walk.next()) << text;
+    ASSERT_EQ(icu::BreakIterator::DONE, walk.next());
+    ASSERT_EQ(length, walk.last());
+  }
+}
+
+TEST(EGCLatinFastPath, IndexingReturnsTheCodePoint) {
+  const std::string text = "a\xc3\xb1z";  // a ñ z
+  const auto length = static_cast<int32_t>(text.size());
+  EXPECT_EQ('a', u8_egc_index_as_single_codepoint(text.data(), length, 0));
+  EXPECT_EQ(0xF1, u8_egc_index_as_single_codepoint(text.data(), length, 1));
+  EXPECT_EQ('z', u8_egc_index_as_single_codepoint(text.data(), length, 2));
+  EXPECT_EQ(0, u8_egc_index_as_single_codepoint(text.data(), length, 3));  // virtual NUL
+  EXPECT_EQ(-2, u8_egc_index_as_single_codepoint(text.data(), length, 4));
 }

@@ -88,6 +88,7 @@ class EGCIterator {
  private:
   bool ok_ = false;
   bool ascii_ = false;
+  bool single_codepoint_ = false;
   bool icu_ready_ = false;
   const char* src_;
   int32_t len_;
@@ -125,6 +126,30 @@ class EGCIterator {
     return (acc & 0x80u) == 0 && cr == 0;
   }
 
+  // True when the string is well-formed UTF-8 made only of code points below
+  // U+0300 and contains no CR: Latin text, Spanish included. Nothing in that
+  // range has a Grapheme_Cluster_Break property that joins (the first combining
+  // mark is U+0300; U+00AD is Control, which always breaks), so every code point
+  // is its own cluster and the clusters can be walked without ICU. Anything else
+  // falls back to ICU, including malformed input. Agreement with ICU is pinned
+  // by EGCLatinFastPath.* in test_strutils.cc.
+  static bool all_single_codepoint(const char* src, int32_t slen) {
+    if (slen < 0) return false;
+    for (int32_t i = 0; i < slen;) {
+      const auto c = static_cast<unsigned char>(src[i]);
+      if (c < 0x80) {
+        if (c == '\r') return false;
+        i++;
+      } else if (c >= 0xC2 && c <= 0xCB && i + 1 < slen &&
+                 (static_cast<unsigned char>(src[i + 1]) & 0xC0) == 0x80) {
+        i += 2;
+      } else {
+        return false;
+      }
+    }
+    return true;
+  }
+
   bool setup_icu() {
     UText text = UTEXT_INITIALIZER;
     UErrorCode status = U_ZERO_ERROR;
@@ -158,6 +183,8 @@ class EGCIterator {
  public:
   [[nodiscard]] bool ok() const { return ok_; }
   [[nodiscard]] bool is_ascii() const { return ascii_; }
+  // Non-ASCII, but one cluster per code point: see all_single_codepoint().
+  [[nodiscard]] bool is_single_codepoint() const { return single_codepoint_; }
   // The raw predicate, WITHOUT constructing an iterator. Constructing one
   // acquires an ICU break iterator from the pool, which builds 32 of them on
   // first touch -- absurd overhead when all you want is a byte scan. Callers
@@ -185,6 +212,7 @@ class EGCIterator {
     ok_ = false;
     icu_ready_ = false;
     ascii_ = false;
+    single_codepoint_ = false;
     src_ = src;
     len_ = slen;
 
@@ -214,6 +242,12 @@ class EGCIterator {
       // Pure ASCII is always well-formed UTF-8; defer ICU until something
       // actually asks for the underlying break iterator.
       ascii_ = true;
+      ok_ = true;
+      return;
+    }
+
+    if (slen >= 0 && all_single_codepoint(src, slen)) {
+      single_codepoint_ = true;
       ok_ = true;
       return;
     }
