@@ -3,7 +3,6 @@
 
 #include <nlohmann/json.hpp>
 #include <cmath>
-#include <charconv>
 #include <limits>
 #include <set>
 #include <stdexcept>
@@ -28,55 +27,153 @@ void validate_text(const std::string& value) {
     throw std::runtime_error("JSON string exceeds maximum string length");
 }
 
-void from_json(const json& source, svalue_t* output, int depth) {
-  if (depth > max_json_depth) throw std::runtime_error("JSON nesting exceeds 64 levels");
-  if (source.is_null()) {
-    *output = svalue_t{T_NULL, 0, {0}};
-  } else if (source.is_boolean()) {
-    *output = svalue_t{T_BOOLEAN, 0, {source.get<bool>() ? 1 : 0}};
-  } else if (source.is_number_unsigned()) {
-    auto number = source.get<uint64_t>();
-    if (number > static_cast<uint64_t>(std::numeric_limits<LPC_INT>::max()))
-      throw std::runtime_error("JSON integer exceeds LPC integer range");
-    *output = svalue_t{T_NUMBER, 0, {static_cast<LPC_INT>(number)}};
-  } else if (source.is_number_integer()) {
-    *output = svalue_t{T_NUMBER, 0, {source.get<LPC_INT>()}};
-  } else if (source.is_number_float()) {
-    output->type = T_REAL;
-    output->subtype = 0;
-    output->u.real = source.get<LPC_FLOAT>();
-    if (!std::isfinite(output->u.real)) throw std::runtime_error("JSON number must be finite");
-  } else if (source.is_string()) {
-    const auto& text = source.get_ref<const std::string&>();
-    validate_text(text);
-    output->u.string = string_copy(text.c_str(), "json_decode");
-    output->type = T_STRING;
-    output->subtype = STRING_MALLOC;
-  } else if (source.is_array()) {
-    if (source.size() > static_cast<size_t>(CONFIG_INT(__MAX_ARRAY_SIZE__)))
-      throw std::runtime_error("JSON array exceeds maximum array size");
-    output->u.arr = allocate_array(source.size());
-    output->type = T_ARRAY;
-    output->subtype = 0;
-    for (size_t index = 0; index < source.size(); ++index)
-      from_json(source[index], &output->u.arr->item[index], depth + 1);
-  } else if (source.is_object()) {
-    if (source.size() > static_cast<size_t>(CONFIG_INT(__MAX_MAPPING_SIZE__)))
-      throw std::runtime_error("JSON object exceeds maximum mapping size");
-    output->u.map = allocate_mapping(source.size());
-    output->type = T_MAPPING;
-    output->subtype = 0;
-    for (const auto& [key, item] : source.items()) {
-      validate_text(key);
-      Value key_value;
-      key_value.value.u.string = make_shared_string(key.c_str());
-      key_value.value.type = T_STRING;
-      key_value.value.subtype = STRING_SHARED;
-      svalue_t* slot = find_for_insert(output->u.map, &key_value.value, 1);
-      from_json(item, slot, depth + 1);
+// Builds the LPC value directly from the parser's events, so a decode allocates
+// neither a json tree nor per-object key sets. Everything built so far is owned
+// here: a limit (thrown as a C++ exception) or an error() from an allocation
+// unwinds through the destructor and frees it.
+class SvalueBuilder : public nlohmann::json_sax<json> {
+ public:
+  SvalueBuilder() = default;
+  SvalueBuilder(const SvalueBuilder&) = delete;
+  SvalueBuilder& operator=(const SvalueBuilder&) = delete;
+  ~SvalueBuilder() override {
+    for (auto& frame : frames_) {
+      for (auto& item : frame.items) free_svalue(&item, "json builder");
+      free_svalue(&frame.key, "json builder");
+      if (frame.map) free_mapping(frame.map);
     }
+    free_svalue(&root_, "json builder");
   }
-}
+
+  bool null() override { return emit(svalue_t{T_NULL, 0, {0}}); }
+  bool boolean(bool value) override { return emit(svalue_t{T_BOOLEAN, 0, {value ? 1 : 0}}); }
+  bool number_integer(number_integer_t value) override {
+    return emit(svalue_t{T_NUMBER, 0, {static_cast<LPC_INT>(value)}});
+  }
+  bool number_unsigned(number_unsigned_t value) override {
+    if (value > static_cast<uint64_t>(std::numeric_limits<LPC_INT>::max()))
+      throw std::runtime_error("JSON integer exceeds LPC integer range");
+    return emit(svalue_t{T_NUMBER, 0, {static_cast<LPC_INT>(value)}});
+  }
+  bool number_float(number_float_t value, const string_t& token) override {
+    // The parser falls back to double for an integer token too big for 64 bits.
+    if (token.find_first_of(".eE") == string_t::npos)
+      throw std::runtime_error("JSON integer exceeds LPC integer range");
+    if (!std::isfinite(value)) throw std::runtime_error("JSON number must be finite");
+    svalue_t real;
+    real.type = T_REAL;
+    real.subtype = 0;
+    real.u.real = value;
+    return emit(real);
+  }
+  bool string(string_t& value) override {
+    validate_text(value);
+    svalue_t text;
+    text.u.string = string_copy(value.c_str(), "json_decode");
+    text.type = T_STRING;
+    text.subtype = STRING_MALLOC;
+    return emit(text);
+  }
+  bool binary(binary_t&) override { throw std::runtime_error("JSON binary values are unsupported"); }
+
+  bool start_object(std::size_t) override {
+    enter();
+    frames_.back().map = allocate_mapping(0);
+    return true;
+  }
+  bool key(string_t& value) override {
+    validate_text(value);
+    Frame& frame = frames_.back();
+    frame.key.u.string = make_shared_string(value.c_str());
+    frame.key.type = T_STRING;
+    frame.key.subtype = STRING_SHARED;
+    if (find_in_mapping(frame.map, frame.key) != &const0u)
+      throw std::runtime_error("Duplicate JSON object key: " + value);
+    return true;
+  }
+  bool end_object() override {
+    svalue_t finished;
+    finished.u.map = frames_.back().map;
+    finished.type = T_MAPPING;
+    finished.subtype = 0;
+    frames_.back().map = nullptr;
+    frames_.pop_back();
+    return emit(finished);
+  }
+  bool start_array(std::size_t) override {
+    enter();
+    return true;
+  }
+  bool end_array() override {
+    auto& items = frames_.back().items;
+    array_t* array = allocate_empty_array(static_cast<int>(items.size()));
+    if (!items.empty()) memcpy(array->item, items.data(), items.size() * sizeof(svalue_t));
+    items.clear();  // moved into the array
+    frames_.pop_back();
+    svalue_t finished;
+    finished.u.arr = array;
+    finished.type = T_ARRAY;
+    finished.subtype = 0;
+    return emit(finished);
+  }
+  bool parse_error(std::size_t position, const std::string&,
+                   const nlohmann::detail::exception& exception) override {
+    failure_ = exception.what();
+    if (dynamic_cast<const json::parse_error*>(&exception)) {
+      syntax_error_ = true;
+      failure_offset_ = position;
+    }
+    return false;
+  }
+
+  [[nodiscard]] svalue_t* root() { return &root_; }
+  [[nodiscard]] const std::string& failure() const { return failure_; }
+  [[nodiscard]] bool syntax_error() const { return syntax_error_; }
+  [[nodiscard]] size_t failure_offset() const { return failure_offset_; }
+
+ private:
+  struct Frame {
+    std::vector<svalue_t> items;  // array elements so far
+    mapping_t* map = nullptr;     // object so far; null for an array
+    svalue_t key = const0;        // object key waiting for its value
+  };
+
+  void enter() {
+    if (frames_.size() > max_json_depth) throw std::runtime_error("JSON nesting exceeds 64 levels");
+    frames_.emplace_back();
+  }
+
+  // Takes ownership of value.
+  bool emit(svalue_t value) {
+    if (frames_.empty()) {
+      root_ = value;
+      return true;
+    }
+    Frame& frame = frames_.back();
+    if (!frame.map) {
+      if (frame.items.size() >= static_cast<size_t>(CONFIG_INT(__MAX_ARRAY_SIZE__))) {
+        free_svalue(&value, "json builder");
+        throw std::runtime_error("JSON array exceeds maximum array size");
+      }
+      frame.items.push_back(value);
+      return true;
+    }
+    if (MAP_COUNT(frame.map) >= static_cast<unsigned>(CONFIG_INT(__MAX_MAPPING_SIZE__))) {
+      free_svalue(&value, "json builder");
+      throw std::runtime_error("JSON object exceeds maximum mapping size");
+    }
+    *find_for_insert(frame.map, &frame.key, 1) = value;
+    free_svalue(&frame.key, "json builder");
+    frame.key = const0;
+    return true;
+  }
+
+  std::vector<Frame> frames_;
+  svalue_t root_ = const0;
+  std::string failure_;
+  bool syntax_error_ = false;
+  size_t failure_offset_ = 0;
+};
 
 json to_json(const svalue_t* value, std::set<const void*>& active, int depth, size_t& budget) {
   if (!budget--) throw std::runtime_error("JSON output exceeds node budget");
@@ -120,66 +217,38 @@ json to_json(const svalue_t* value, std::set<const void*>& active, int depth, si
 }
 
 void decode(bool object_only) {
+  const char* data;
+  size_t size;
+  if (sp->type == T_STRING) {
+    data = sp->u.string;
+    size = SVALUE_STRLEN(sp);
+  } else {
+    data = reinterpret_cast<const char*>(sp->u.buf->item);
+    size = sp->u.buf->size;
+  }
+
   std::string failure;
   std::string failure_code = "json.invalid_data";
   size_t offset = 0;
   {
-    Value result;
+    SvalueBuilder builder;
     try {
-      std::string source;
-      if (sp->type == T_STRING) source.assign(sp->u.string, SVALUE_STRLEN(sp));
-      else source.assign(reinterpret_cast<const char*>(sp->u.buf->item), sp->u.buf->size);
-      if (source.size() > static_cast<size_t>(CONFIG_INT(__MAX_STRING_LENGTH__)))
+      if (size > static_cast<size_t>(CONFIG_INT(__MAX_STRING_LENGTH__)))
         throw std::runtime_error("JSON input exceeds maximum string length");
-      if (source.find('\0') != std::string::npos)
+      if (size && memchr(data, '\0', size))
         throw std::runtime_error("JSON input contains an embedded NUL byte");
-      // nlohmann falls back to double for integer tokens beyond uint64. Reject
-      // those tokens before parsing rather than silently losing precision.
-      bool quoted = false;
-      for (size_t index = 0; index < source.size(); ++index) {
-        const char ch = source[index];
-        if (quoted) {
-          if (ch == '\\') ++index;
-          else if (ch == '"') quoted = false;
-          continue;
-        }
-        if (ch == '"') { quoted = true; continue; }
-        if (ch != '-' && (ch < '0' || ch > '9')) continue;
-        size_t end = index;
-        bool integer = true;
-        while (end < source.size() &&
-               ((source[end] >= '0' && source[end] <= '9') || source[end] == '-' ||
-                source[end] == '+' || source[end] == '.' || source[end] == 'e' || source[end] == 'E')) {
-          if (source[end] == '.' || source[end] == 'e' || source[end] == 'E') integer = false;
-          ++end;
-        }
-        if (integer) {
-          LPC_INT number;
-          const auto parsed = std::from_chars(source.data() + index, source.data() + end, number);
-          if (parsed.ec == std::errc::result_out_of_range)
-            throw std::runtime_error("JSON integer exceeds LPC integer range");
-        }
-        index = end - 1;
+      if (json::sax_parse(data, data + size, &builder)) {
+        if (object_only && builder.root()->type != T_MAPPING)
+          throw std::runtime_error("JSON root must be an object");
+        pop_stack();
+        push_svalue(builder.root());
+        return;
       }
-      std::vector<std::set<std::string>> object_keys;
-      auto callback = [&](int depth, json::parse_event_t event, json& parsed) {
-        if (depth > max_json_depth) throw std::runtime_error("JSON nesting exceeds 64 levels");
-        if (event == json::parse_event_t::object_start) object_keys.emplace_back();
-        if (event == json::parse_event_t::object_end) object_keys.pop_back();
-        if (event == json::parse_event_t::key && !object_keys.back().insert(parsed.get<std::string>()).second)
-          throw std::runtime_error("Duplicate JSON object key: " + parsed.get<std::string>());
-        return true;
-      };
-      json document = json::parse(source, callback);
-      if (object_only && !document.is_object()) throw std::runtime_error("JSON root must be an object");
-      from_json(document, &result.value, 0);
-      pop_stack();
-      push_svalue(&result.value);
-      return;
-    } catch (const json::parse_error& exception) {
-      failure_code = "json.syntax";
-      failure = exception.what();
-      offset = exception.byte;
+      failure = builder.failure();
+      if (builder.syntax_error()) {
+        failure_code = "json.syntax";
+        offset = builder.failure_offset();
+      }
     } catch (const std::exception& exception) {
       failure = exception.what();
     }
