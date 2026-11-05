@@ -67,6 +67,8 @@
 
 #include "packages/db/db.h"
 
+#include <csignal>
+
 #include "packages/core/errors.h"
 #include "packages/core/file.h"
 #include "packages/core/outbuf.h"
@@ -201,7 +203,20 @@ constexpr int sqlite_progress_interval = 1000;  // VM instructions between check
 
 int sqlite_progress(void*) {
   if (sqlite_on_worker) return std::chrono::steady_clock::now() >= sqlite_worker_deadline;
-  return outoftime != 0;
+  if (outoftime) return 1;
+#ifndef _WIN32
+  // The event loop cannot act on a shutdown signal until this statement ends.
+  // libevent's signalfd backend leaves it pending, so stop the statement and
+  // let the loop see it. Other backends report nothing here; the eval limit
+  // still ends the statement.
+  sigset_t pending;
+  if (sigpending(&pending) == 0 &&
+      (sigismember(&pending, SIGTERM) == 1 || sigismember(&pending, SIGINT) == 1 ||
+       sigismember(&pending, SIGHUP) == 1)) {
+    return 1;
+  }
+#endif
+  return 0;
 }
 
 using OwnedArray = std::unique_ptr<array_t, decltype(&free_array)>;
