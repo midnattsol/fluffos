@@ -52,4 +52,47 @@ void do_tests() {
   value = a == a;
   ASSERT(catch(value = value + 1));
   ASSERT_EQ(1, value ? 1 : 0);
+
+  // A mixed holding a bool assigns to a bool variable; anything else is
+  // refused with a message that names bool, not class.
+  {
+    mixed t = true, fl = false, n = 5, str = "x", zero = 0, nul = null;
+    mixed arr = ({ true, false });
+    null_value nv;
+    bool bt, bf, bz;
+    bool *ba;
+    mixed err;
+    string msg;
+
+    bt = t;
+    bf = fl;
+    ASSERT(booleanp(bt));
+    ASSERT(booleanp(bf));
+    ASSERT(bt);
+    ASSERT(!bf);
+
+    err = catch(bt = n);
+    ASSERT(err);
+    msg = error_info(err)["message"];
+    ASSERT(strsrch(msg, "bool") != -1);
+    ASSERT(strsrch(msg, "class") == -1);
+    err = catch(bt = str);
+    ASSERT(err);
+    msg = error_info(err)["message"];
+    ASSERT(strsrch(msg, "bool") != -1);
+    ASSERT(strsrch(msg, "class") == -1);
+
+    // Integer zero stays allowed by the runtime check.
+    ASSERT(!catch(bz = zero));
+
+    ba = arr;
+    ASSERT_EQ(2, sizeof(ba));
+    ASSERT(booleanp(ba[0]));
+    ASSERT(ba[0]);
+    ASSERT(!ba[1]);
+
+    nv = nul;
+    ASSERT(json_nullp(nv));
+    ASSERT(catch(nv = t));
+  }
 }

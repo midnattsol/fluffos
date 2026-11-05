@@ -2552,6 +2552,12 @@ parse_node_t* add_type_check(parse_node_t* node, int intype) {
     case TYPE_BUFFER:
       type = T_BUFFER;
       break;
+    case TYPE_BOOLEAN:
+      type = T_BOOLEAN;
+      break;
+    case TYPE_NULL:
+      type = T_NULL;
+      break;
     default:
       if (runtype & TYPE_MOD_ARRAY) {
         type = T_ARRAY;
