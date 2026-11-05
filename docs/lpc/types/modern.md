@@ -18,10 +18,14 @@ null_value empty = null;
 error_value failure = make_error("data.invalid", "Invalid profile");
 ```
 
-`false`, `null`, integer zero, and an undefined mapping lookup are distinct.
-False and null are false in conditions. Boolean arithmetic requires an explicit
-application-level conversion; booleans are not integers. Use `booleanp()` and
-`json_nullp()` to inspect dynamic values. Legacy `nullp()` remains an alias of
+`false`, `null`, integer zero, and an undefined mapping lookup are distinct:
+`false == 0` is false. False and null are false in conditions and wherever the
+driver asks a yes/no question, such as a verb function's return value.
+In a program with this pragma, comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`) and
+`!` produce `bool`, so `bool same = a == b;` type-checks and `int n = a == b;`
+does not. `&&` and `||` still produce one of their operands. Boolean arithmetic
+requires an explicit conversion such as `flag ? 1 : 0`; booleans are not integers.
+Use `booleanp()` and `json_nullp()` to inspect dynamic values. Legacy `nullp()` remains an alias of
 `undefinedp()` and does **not** identify the new null value.
 
 As with other LPC declarations, initialize variables before consuming their
@@ -35,6 +39,8 @@ Errors are transient: serialize selected `error_info()` fields explicitly.
 `errorp(value)` identifies it. `error_info(value)` returns a detached mapping
 with `code`, `message`, `context`, `cause`, and `trace`. Context containers are
 copied, cycles are rejected, and object/function handles retain their identity.
+A shared container is copied once per reference, and a context whose copy would
+exceed `maximum array size` values is rejected.
 The cause is another immutable error or null. Traces exclude arguments and
 locals and are captured at construction.
 

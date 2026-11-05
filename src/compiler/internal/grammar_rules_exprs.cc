@@ -1553,6 +1553,16 @@ void rule_expr_and(struct parse_node_t** result, struct parse_node_t* expr1,
 // L_EQ_NE carries the opcode (L_ORDER idiom); the two legs keep their
 // separate bodies -- '==' has a compare-against-zero strength reduction
 // '!=' doesn't.
+/* In modern_types code a comparison or ! yields a real bool. Conditions drop
+ * the conversion again (see i_generate_if_branch), so `if (a == b)` costs the
+ * same as in legacy code. */
+static void modern_boolean_result(struct parse_node_t** result) {
+  if (pragmas & PRAGMA_MODERN_TYPES) {
+    parse_node_t* const value = *result;
+    CREATE_UNARY_OP(*result, F_TO_BOOLEAN, TYPE_BOOLEAN, value);
+  }
+}
+
 void rule_expr_eq_ne(struct parse_node_t** result, LPC_INT op, struct parse_node_t* expr1,
                      struct parse_node_t* expr2) {
   if (op == F_EQ) {
@@ -1560,6 +1570,7 @@ void rule_expr_eq_ne(struct parse_node_t** result, LPC_INT op, struct parse_node
   } else {
     rule_expr_ne(result, expr1, expr2);
   }
+  modern_boolean_result(result);
 }
 
 void rule_expr_eq(struct parse_node_t** result, struct parse_node_t* expr1,
@@ -1573,9 +1584,9 @@ void rule_expr_eq(struct parse_node_t** result, struct parse_node_t* expr1,
     p = strput(p, end, ".");
     yyerror("%s", buf);
   }
-  if (IS_NODE(expr1, NODE_NUMBER, 0)) {
+  if (IS_NODE(expr1, NODE_NUMBER, 0) && IS_INT_TYPED(expr2)) {
     CREATE_UNARY_OP(*result, F_NOT, TYPE_NUMBER, expr2);
-  } else if (IS_NODE(expr2, NODE_NUMBER, 0)) {
+  } else if (IS_NODE(expr2, NODE_NUMBER, 0) && IS_INT_TYPED(expr1)) {
     CREATE_UNARY_OP(*result, F_NOT, TYPE_NUMBER, expr1);
   } else {
     CREATE_BINARY_OP(*result, F_EQ, TYPE_NUMBER, expr1, expr2);
@@ -1634,6 +1645,7 @@ void rule_expr_order(struct parse_node_t** result, struct parse_node_t* expr1, L
     }
   }
   CREATE_BINARY_OP(*result, op, TYPE_NUMBER, expr1, expr2);
+  modern_boolean_result(result);
 }
 
 void rule_expr_lt(struct parse_node_t** result, struct parse_node_t* expr1,
@@ -1667,6 +1679,7 @@ void rule_expr_lt(struct parse_node_t** result, struct parse_node_t* expr1,
     }
   }
   CREATE_BINARY_OP(*result, F_LT, TYPE_NUMBER, expr1, expr2);
+  modern_boolean_result(result);
 }
 
 void rule_expr_shift(struct parse_node_t** result, LPC_INT op, struct parse_node_t* expr1,
@@ -2157,12 +2170,16 @@ static void expr_incdec(struct parse_node_t** result, int opcode, const char* ba
 }
 
 void rule_expr_not(struct parse_node_t** result, struct parse_node_t* expr) {
+  if (IS_NODE(expr, NODE_UNARY_OP, F_TO_BOOLEAN)) {
+    expr = expr->r.expr; /* same truth value */
+  }
   if (expr->kind == NODE_NUMBER) {
     *result = expr;
     (*result)->v.number = !((*result)->v.number);
   } else {
     CREATE_UNARY_OP(*result, F_NOT, TYPE_NUMBER, expr);
   }
+  modern_boolean_result(result);
 }
 
 void rule_expr_compl(struct parse_node_t** result, struct parse_node_t* expr) {

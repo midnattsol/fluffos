@@ -469,7 +469,7 @@ static int user_parser(char* buff) {
           verb_buff);
       ret = nullptr;
     }
-    if (ret && (ret->type != T_NUMBER || ret->u.number != 0)) {
+    if (ret && !IS_ZERO(ret)) {
 #ifdef PACKAGE_MUDLIB_STATS
       if (command_giver && command_giver->interactive
 #ifndef NO_WIZARDS

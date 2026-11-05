@@ -89,6 +89,10 @@ typedef struct parse_node_block_s {
   SAFE((vn) = new_node(); (vn)->kind = NODE_BINARY_OP; INT_CREATE_BINARY_OP(vn, op, t, x, y);)
 #define INT_CREATE_BINARY_OP(vn, op, t, x, y) \
   SAFE(INT_CREATE_UNARY_OP(vn, op, t, y); (vn)->l.expr = x;)
+/* Comparing with a literal 0 folds to a plain truth test only for an operand
+ * known to be an int: false and null are false in a condition, yet neither
+ * equals 0. */
+#define IS_INT_TYPED(x) ((x)->type == TYPE_NUMBER)
 #define CREATE_UNARY_OP(vn, op, t, x) \
   SAFE((vn) = new_node(); (vn)->kind = NODE_UNARY_OP; INT_CREATE_UNARY_OP(vn, op, t, x);)
 #define INT_CREATE_UNARY_OP(vn, op, t, x) SAFE(INT_CREATE_OPCODE(vn, op, t); (vn)->r.expr = x;)

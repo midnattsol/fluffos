@@ -1,0 +1,64 @@
+#pragma modern_types
+#include <tests.h>
+
+mixed id(mixed x) { return x; }
+
+mixed verb_false(string s) { return false; }
+mixed verb_null(string s) { return null; }
+mixed verb_zero(string s) { return 0; }
+mixed verb_true(string s) { return true; }
+
+private void run_verbs() {
+#ifndef __NO_ADD_ACTION__
+  enable_commands();
+  add_action("verb_false", "tv_false");
+  add_action("verb_null", "tv_null");
+  add_action("verb_zero", "tv_zero");
+  add_action("verb_true", "tv_true");
+  // A falsy answer means the verb declined, whatever spelling it used.
+  ASSERT_EQ(0, command("tv_false"));
+  ASSERT_EQ(0, command("tv_null"));
+  ASSERT_EQ(0, command("tv_zero"));
+  ASSERT(command("tv_true"));
+  disable_commands();
+#endif
+}
+
+void do_tests() {
+  mixed yes = id(true), no = id(false), nil = id(null);
+  int ran = 0;
+  mixed failure = make_error("a", "b");
+
+  run_verbs();
+
+  ASSERT_EQ(-1, member_array((: false :), ({ 1, 2 }), 0, 4));
+  ASSERT_EQ(-1, member_array((: null :), ({ 1, 2 }), 0, 4));
+  ASSERT_EQ(0, member_array((: true :), ({ 1, 2 }), 0, 4));
+
+  ASSERT_EQ(1, member_array(yes, ({ 1, yes })));
+  ASSERT_EQ(1, member_array(no, ({ 0, no })));
+  ASSERT_EQ(1, member_array(nil, ({ 0, nil })));
+  ASSERT_EQ(-1, member_array(yes, ({ 1 })));
+  ASSERT_EQ(-1, member_array(no, ({ 0 })));
+  ASSERT_EQ(-1, member_array(nil, ({ no })));
+  ASSERT_EQ(1, member_array(failure, ({ 1, failure })));
+
+  // false and null are false in a condition, but neither equals 0 -- also
+  // when the 0 is a literal the compiler could fold away.
+  ASSERT(!(no == 0));
+  ASSERT(!(nil == 0));
+  ASSERT(!(0 == no));
+  ASSERT(no != 0);
+  ASSERT(nil != 0);
+  if (no != 0) ran++;
+  if (nil != 0) ran++;
+  if (0 != no) ran++;
+  ASSERT_EQ(3, ran);
+  if (no == 0) ran = -100;
+  if (nil == 0) ran = -100;
+  ASSERT_EQ(3, ran);
+  ran = 0;
+  while (no != 0) { ran++; break; }
+  ASSERT_EQ(1, ran);
+  ASSERT_EQ("set", (no != 0) ? "set" : "unset");
+}

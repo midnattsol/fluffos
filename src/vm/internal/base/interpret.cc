@@ -2613,6 +2613,12 @@ void eval_instruction(char* p) {
         push_number(instruction == F_PUSH_TRUE ? 1 : 0);
         sp->type = instruction == F_PUSH_NULL ? T_NULL : T_BOOLEAN;
         break;
+      case F_TO_BOOLEAN:
+        /* wraps a comparison or !, which always leave a T_NUMBER */
+        sp->u.number = sp->u.number != 0;
+        sp->type = T_BOOLEAN;
+        sp->subtype = 0;
+        break;
       case F_REAL:
         LOAD_FLOAT(real, pc);
         push_real(real);

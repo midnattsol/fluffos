@@ -200,6 +200,7 @@ void init_instrs() {
   add_instr_name("true", 0, F_PUSH_TRUE, T_BOOLEAN);
   add_instr_name("false", 0, F_PUSH_FALSE, T_BOOLEAN);
   add_instr_name("null", 0, F_PUSH_NULL, T_NULL);
+  add_instr_name("to_boolean", 0, F_TO_BOOLEAN, T_BOOLEAN);
   add_instr_name("end_catch", 0, F_END_CATCH, -1);
   add_instr_name("await", 0, F_AWAIT, T_ANY);
   add_instr_name("acatch", 0, F_ACATCH, T_ANY);

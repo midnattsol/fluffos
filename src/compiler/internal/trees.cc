@@ -478,6 +478,10 @@ parse_node_t* optimize_loop_test(parse_node_t* pn) {
     return nullptr;
   }
 
+  if (IS_NODE(pn, NODE_UNARY_OP, F_TO_BOOLEAN)) {
+    pn = pn->r.expr; /* same truth value */
+  }
+
   if (IS_NODE(pn, NODE_BINARY_OP, F_LT) && IS_NODE(pn->l.expr, NODE_OPCODE_1, F_LOCAL)) {
     if (IS_NODE(pn->r.expr, NODE_OPCODE_1, F_LOCAL)) {
       CREATE_OPCODE_2(ret, F_LOOP_COND_LOCAL, 0, pn->l.expr->l.number, pn->r.expr->l.number);

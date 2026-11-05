@@ -1,0 +1,55 @@
+#pragma strict_types
+#pragma modern_types
+#include <tests.h>
+
+bool same(int a, int b) { return a == b; }
+
+void do_tests() {
+  int a = 1, b = 2, ran = 0;
+  mixed value;
+  bool c = a == b;
+  bool d = !a;
+  bool e = a < b;
+  bool f = a >= b;
+  bool g = a != b;
+
+  ASSERT(booleanp(c));
+  ASSERT(booleanp(d));
+  ASSERT(booleanp(e));
+  ASSERT(booleanp(f));
+  ASSERT(booleanp(g));
+  ASSERT(!c);
+  ASSERT(!d);
+  ASSERT(e);
+  ASSERT(!f);
+  ASSERT(g);
+  ASSERT(booleanp(same(a, b)));
+  ASSERT(booleanp(!c));
+  ASSERT(booleanp(!!a));
+  ASSERT(booleanp(!0));
+  ASSERT_EQ("[false,true]", efun::json_encode(({ a == b, a != b })));
+
+  // A condition takes the same branch with or without the conversion.
+  if (a == b) ran = -100;
+  if (a != b) ran++;
+  if (!(a == b)) ran++;
+  if (a < b) ran++; else ran = -100;
+  if (a == b) { ran = -100; } else { ran++; }
+  if (a == b); else ran++;
+  ASSERT_EQ(5, ran);
+  ASSERT_EQ("yes", (a < b) ? "yes" : "no");
+  ASSERT_EQ("yes", !(a < b) ? "no" : "yes");
+
+  ran = 0;
+  while (ran < 3) ran++;
+  ASSERT_EQ(3, ran);
+  do { ran--; } while (ran != 0);
+  ASSERT_EQ(0, ran);
+  for (a = 0; !(a == 3); a++) ran++;
+  ASSERT_EQ(3, ran);
+
+  // Booleans are not integers: an explicit conversion stays possible.
+  value = a == a;
+  ASSERT(catch(value = value + 1));
+  ASSERT_EQ(1, value ? 1 : 0);
+}

@@ -693,7 +693,7 @@ bool on_receive_mxp_tag(interactive_t* ip, const char* user_command) {
 
   set_eval(max_eval_cost);
   auto ret = safe_apply(APPLY_MXP_TAG, ip->ob, 1, ORIGIN_DRIVER);
-  if (ret && ret->type == T_NUMBER && ret->u.number) {
+  if (ret && (ret->type == T_NUMBER || ret->type == T_BOOLEAN) && ret->u.number) {
     return false;
   }
   return true;

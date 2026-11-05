@@ -201,7 +201,7 @@ void check_valid_ffi(const char* op, svalue_t* arg) {
   }
   push_object(current_object);
   svalue_t* ret = safe_apply_master_ob(APPLY_VALID_FFI, 3);
-  if (ret && (ret == reinterpret_cast<svalue_t*>(-1) || (ret->type == T_NUMBER && ret->u.number))) {
+  if (ret && (ret == reinterpret_cast<svalue_t*>(-1) || ((ret->type == T_NUMBER || ret->type == T_BOOLEAN) && ret->u.number))) {
     return;
   }
   error("FFI security violation: '%s' denied by master::valid_ffi.\n", op);

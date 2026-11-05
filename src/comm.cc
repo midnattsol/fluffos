@@ -639,7 +639,8 @@ static void process_input(interactive_t* ip, char* user_command) {
     DEFER { FREE_MSTR(command); };
     safe_parse_command(command, command_giver);
   } else {
-    if (ret->type != T_NUMBER || !ret->u.number) {
+    const bool handled = (ret->type == T_NUMBER || ret->type == T_BOOLEAN) && ret->u.number;
+    if (!handled) {
       safe_parse_command(user_command, command_giver);
     }
   }

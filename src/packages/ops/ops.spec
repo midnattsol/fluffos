@@ -50,6 +50,7 @@ operator ref, ref_lvalue;
 operator global, global_lvalue;
 operator member, member_lvalue;
 operator push_true, push_false, push_null;
+operator to_boolean;
 operator catch_error;
 operator acatch_error;
 operator map_member, map_member_lvalue;

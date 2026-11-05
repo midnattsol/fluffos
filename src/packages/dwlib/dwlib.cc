@@ -52,7 +52,7 @@ void query_multiple_short(svalue_t* arg, const char* type, int no_dollars, int q
     }
     v = apply("check_dark", command_giver, 1, ORIGIN_EFUN);
 
-    if (v && v->type == T_NUMBER && v->u.number) {
+    if (v && (v->type == T_NUMBER || v->type == T_BOOLEAN) && v->u.number) {
       pop_n_elems(num_arg);
       copy_and_push_string("some objects you cannot make out");
       return;

@@ -984,6 +984,10 @@ static void i_generate_if_branch(parse_node_t* node, int invert) {
         i_generate_if_branch(node->r.expr, !invert);
         return;
       }
+      if (node->v.number == F_TO_BOOLEAN) { /* same truth value */
+        i_generate_if_branch(node->r.expr, invert);
+        return;
+      }
       break;
     case NODE_BINARY_OP:
       switch (node->v.number) {

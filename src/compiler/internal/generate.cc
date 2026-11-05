@@ -360,13 +360,16 @@ int generate_conditional_branch(parse_node_t* node) {
     return F_BBRANCH;
   }
 
+  if (IS_NODE(node, NODE_UNARY_OP, F_TO_BOOLEAN)) {
+    node = node->r.expr; /* same truth value */
+  }
   /* only have to handle while (x != 0) since while (x == 0) will be
    * handled by the x == 0 -> !x and !x optimizations.
    */
   if (IS_NODE(node, NODE_BINARY_OP, F_NE)) {
-    if (IS_NODE(node->r.expr, NODE_NUMBER, 0)) {
+    if (IS_NODE(node->r.expr, NODE_NUMBER, 0) && IS_INT_TYPED(node->l.expr)) {
       node = node->l.expr;
-    } else if (IS_NODE(node->l.expr, NODE_NUMBER, 0)) {
+    } else if (IS_NODE(node->l.expr, NODE_NUMBER, 0) && IS_INT_TYPED(node->r.expr)) {
       node = node->r.expr;
     }
   }

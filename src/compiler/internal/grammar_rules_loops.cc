@@ -27,11 +27,14 @@ void rule_do(parse_node_t** result, parse_node_t* stmt, parse_node_t* expr, LPC_
 
 void rule_cond(parse_node_t** result, parse_node_t* expr, parse_node_t* then_branch,
                parse_node_t* else_branch) {
+  if (IS_NODE(expr, NODE_UNARY_OP, F_TO_BOOLEAN)) {
+    expr = expr->r.expr; /* same truth value */
+  }
   /* x != 0 -> x */
   if (IS_NODE(expr, NODE_BINARY_OP, F_NE)) {
-    if (IS_NODE(expr->r.expr, NODE_NUMBER, 0))
+    if (IS_NODE(expr->r.expr, NODE_NUMBER, 0) && IS_INT_TYPED(expr->l.expr))
       expr = expr->l.expr;
-    else if (IS_NODE(expr->l.expr, NODE_NUMBER, 0))
+    else if (IS_NODE(expr->l.expr, NODE_NUMBER, 0) && IS_INT_TYPED(expr->r.expr))
       expr = expr->r.expr;
   }
 

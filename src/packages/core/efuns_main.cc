@@ -1108,12 +1108,23 @@ void f_member_array() {
         // element makes the function return truthy.
         push_svalue(sv);
         svalue_t* ret = call_function_pointer(find->u.fp, 1);
-        if (ret && !(ret->type == T_NUMBER && ret->u.number == 0)) {
+        if (ret && !IS_ZERO(ret)) {
           break;
         }
         continue;
       }
       switch (find->type | sv->type) {
+        case T_BOOLEAN:
+        case T_NULL:
+          if (find->u.number == sv->u.number) {
+            break;
+          }
+          continue;
+        case T_ERROR:
+          if (find->u.map == sv->u.map) {
+            break;
+          }
+          continue;
         case T_STRING:
           if (flag & 1) {
             if (flen && (sv->subtype & STRING_COUNTED) && flen > MSTR_SIZE(sv->u.string)) {
