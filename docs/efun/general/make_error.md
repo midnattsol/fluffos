@@ -13,6 +13,8 @@ throwing is explicit with `throw(value)`.
 
 Context containers are snapshotted to a maximum depth of 64. Cycles and mutable
 container keys are rejected. Object/function handles are retained as handles.
+A shared container is copied once per reference, and a context whose copy would
+exceed `maximum array size` values is rejected.
 The construction-site trace includes source locations but no arguments/locals.
 
 See [modern values and errors](../../lpc/types/modern).

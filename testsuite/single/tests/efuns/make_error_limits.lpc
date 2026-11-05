@@ -1,0 +1,32 @@
+#include <tests.h>
+
+// Each level references the one below twice: small to build, 2^n values to copy.
+private mixed shared_levels(int levels) {
+  mixed value = ({ 1 });
+  for (int i = 0; i < levels; i++) value = ({ value, value });
+  return value;
+}
+
+void do_tests() {
+  mixed failure, caught;
+  mapping info;
+
+  caught = catch(failure = make_error("big", "shared", ([ "data": shared_levels(50) ])));
+  ASSERT(caught);
+  ASSERT(strsrch(sprintf("%O", caught), "too large") != -1);
+
+  // Sharing itself is fine while the copy stays small.
+  failure = make_error("small", "shared", ([ "data": shared_levels(4) ]));
+  info = error_info(failure);
+  ASSERT_EQ(2, sizeof(info["context"]["data"]));
+  ASSERT_EQ(1, info["context"]["data"][0][0][0][0][0]);
+  ASSERT(info["context"]["data"][0] != info["context"]["data"][1]);
+
+  // The largest context make_error accepts must survive error_info.
+  failure = make_error("wide", "wide", ([ "data": allocate(1000) ]));
+  ASSERT_EQ(1000, sizeof(error_info(failure)["context"]["data"]));
+  foreach (mapping frame in error_info(failure)["trace"]) {
+    ASSERT(mapping_has(frame, "function"));
+    ASSERT(!mapping_has(frame, "object"));
+  }
+}

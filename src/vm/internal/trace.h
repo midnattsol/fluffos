@@ -6,3 +6,6 @@ const char* dump_trace(int);
 
 // dump current stack trace into a LPC array.
 struct array_t* get_svalue_trace(void);
+/* The same frames with only function/program/file/line: no object, arguments
+ * or locals, and none of the work of copying them. */
+struct array_t* get_svalue_frame_trace(void);

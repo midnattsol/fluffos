@@ -10,8 +10,15 @@ struct OwnedValue {
   ~OwnedValue() { free_svalue(&value, "error temporary"); }
 };
 
-void snapshot(const svalue_t* source, svalue_t* target, std::set<const void*>& active, int depth) {
+// `budget` counts values copied, not distinct ones: shared subtrees are copied
+// once per reference, so a few nested arrays can describe 2^n values and no LPC
+// instruction runs to trip the eval limit while they are copied.
+void snapshot(const svalue_t* source, svalue_t* target, std::set<const void*>& active, int depth,
+              size_t& budget) {
   if (depth > 64) error("Error context nesting exceeds 64 levels.\n");
+  const size_t cost = source->type == T_BUFFER ? 1 + source->u.buf->size / sizeof(svalue_t) : 1;
+  if (cost > budget) error("Error context is too large.\n");
+  budget -= cost;
   if (source->type == T_BUFFER) {
     target->u.buf = allocate_buffer(source->u.buf->size);
     target->type = T_BUFFER;
@@ -34,7 +41,7 @@ void snapshot(const svalue_t* source, svalue_t* target, std::set<const void*>& a
         if (node->values[0].type & (T_ARRAY | T_CLASS | T_MAPPING | T_BUFFER))
           error("Error context mapping keys cannot be mutable containers.\n");
         svalue_t* slot = find_for_insert(target->u.map, &node->values[0], 1);
-        snapshot(&node->values[1], slot, active, depth + 1);
+        snapshot(&node->values[1], slot, active, depth + 1, budget);
       }
   } else {
     target->u.arr = source->type == T_CLASS ? allocate_class_by_size(source->u.arr->size) :
@@ -42,7 +49,7 @@ void snapshot(const svalue_t* source, svalue_t* target, std::set<const void*>& a
     target->type = source->type;
     target->subtype = 0;
     for (int index = 0; index < source->u.arr->size; ++index)
-      snapshot(&source->u.arr->item[index], &target->u.arr->item[index], active, depth + 1);
+      snapshot(&source->u.arr->item[index], &target->u.arr->item[index], active, depth + 1, budget);
   }
   active.erase(identity);
 }
@@ -67,39 +74,21 @@ void make_error_value(svalue_t* result, const std::string& code, const std::stri
   add_mapping_string(result->u.map, "message", message.c_str());
   OwnedValue copied;
   std::set<const void*> active;
-  if (context) snapshot(context, &copied.value, active, 0);
+  size_t budget = CONFIG_INT(__MAX_ARRAY_SIZE__);
+  if (context) snapshot(context, &copied.value, active, 0, budget);
   else { copied.value.u.map = allocate_mapping(0); copied.value.type = T_MAPPING; }
   set_field(result->u.map, "context", &copied.value);
   svalue_t nil{T_NULL, 0, {0}};
   set_field(result->u.map, "cause", cause && cause->type == T_ERROR ? cause : &nil);
 
+  // Arguments and locals are not retained: they may include credentials and
+  // cycles.
   OwnedValue trace;
-  trace.value.u.arr = get_svalue_trace();
-  // get_svalue_trace returns a reference-zero array (like its existing
-  // push_refed_array callers, this owner must acquire its own reference).
+  trace.value.u.arr = get_svalue_frame_trace();
+  // Like get_svalue_trace(), this returns a reference-zero array.
   trace.value.u.arr->ref++;
   trace.value.type = T_ARRAY;
-  OwnedValue public_trace;
-  int frame_count = 0;
-  for (int index = 0; index < trace.value.u.arr->size; ++index)
-    if (trace.value.u.arr->item[index].type == T_MAPPING) ++frame_count;
-  public_trace.value.u.arr = allocate_array(frame_count);
-  public_trace.value.type = T_ARRAY;
-  int output_index = 0;
-  // Do not retain arguments/locals: they may include credentials and cycles.
-  for (int index = 0; index < trace.value.u.arr->size; ++index) {
-    svalue_t* frame = &trace.value.u.arr->item[index];
-    if (frame->type != T_MAPPING) continue;
-    OwnedValue filtered;
-    filtered.value.u.map = allocate_mapping(4);
-    filtered.value.type = T_MAPPING;
-    for (const char* field : {"file", "program", "function", "line"}) {
-      svalue_t* value = find_string_in_mapping(frame->u.map, field);
-      if (value != &const0u) set_field(filtered.value.u.map, field, value);
-    }
-    assign_svalue(&public_trace.value.u.arr->item[output_index++], &filtered.value);
-  }
-  set_field(result->u.map, "trace", &public_trace.value);
+  set_field(result->u.map, "trace", &trace.value);
 }
 
 void f_make_error() {
@@ -146,7 +135,10 @@ void f_error_info() {
   source.type = T_MAPPING;
   OwnedValue result;
   std::set<const void*> active;
-  snapshot(&source, &result.value, active, 0);
+  // A stored context is already a tree that passed make_error()'s budget, so
+  // this copy is linear in it and must not fail on a valid error.
+  size_t budget = SIZE_MAX;
+  snapshot(&source, &result.value, active, 0, budget);
   pop_stack();
   push_svalue(&result.value);
 }

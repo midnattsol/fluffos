@@ -197,7 +197,7 @@ const char* dump_trace(int how) {
   return ret;
 }
 
-array_t* get_svalue_trace() {
+static array_t* build_svalue_trace(bool with_values) {
   control_stack_t* p;
   array_t* v;
   mapping_t* m;
@@ -265,11 +265,13 @@ array_t* get_svalue_trace() {
 #endif
     }
     add_mapping_malloced_string(m, "program", add_slash(p[1].prog->filename));
-    add_mapping_object(m, "object", p[1].ob);
+    if (with_values) {
+      add_mapping_object(m, "object", p[1].ob);
+    }
     get_explicit_line_number_info(p[1].pc, p[1].prog, &file, &line);
     add_mapping_malloced_string(m, "file", add_slash(file));
     add_mapping_pair(m, "line", line);
-    if (num_arg != -1) {
+    if (with_values && num_arg != -1) {
       array_t* v2;
 
       ptr = p[1].fp;
@@ -280,7 +282,7 @@ array_t* get_svalue_trace() {
       add_mapping_array(m, "arguments", v2);
       v2->ref--;
     }
-    if (num_local > 0 && num_arg != -1) {
+    if (with_values && num_local > 0 && num_arg != -1) {
       array_t* v2;
 
       ptr = p[1].fp + num_arg;
@@ -326,11 +328,13 @@ array_t* get_svalue_trace() {
     } break;
   }
   add_mapping_malloced_string(m, "program", add_slash(current_prog->filename));
-  add_mapping_object(m, "object", current_object);
+  if (with_values) {
+    add_mapping_object(m, "object", current_object);
+  }
   get_line_number_info(&file, &line);
   add_mapping_malloced_string(m, "file", add_slash(file));
   add_mapping_pair(m, "line", line);
-  if (num_arg > 0) {
+  if (with_values && num_arg > 0) {
     array_t* v2;
 
     v2 = allocate_empty_array(num_arg);
@@ -340,7 +344,7 @@ array_t* get_svalue_trace() {
     add_mapping_array(m, "arguments", v2);
     v2->ref--;
   }
-  if (num_local > 0 && num_arg != -1) {
+  if (with_values && num_local > 0 && num_arg != -1) {
     array_t* v2;
 
     v2 = allocate_empty_array(num_local);
@@ -356,3 +360,7 @@ array_t* get_svalue_trace() {
   v->ref--;
   return v;
 }
+
+array_t* get_svalue_trace() { return build_svalue_trace(true); }
+
+array_t* get_svalue_frame_trace() { return build_svalue_trace(false); }
