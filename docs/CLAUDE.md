@@ -488,7 +488,7 @@ python3 docs/gen_sidebar.py --check
 
 ## Docusaurus Configuration
 
-> **Full technical reference**: See **[Section 9 of AGENTS.md](../AGENTS.md#9-documentation-docs)** for the authoritative build/framework guide.
+> **Full technical reference**: See **`agent-guides/docs-site.md`** (repo root) for the authoritative build/framework guide.
 
 The documentation is built using **Docusaurus 3** (`@docusaurus/preset-classic`). Key files:
 

@@ -47,7 +47,7 @@ enum : uint8_t {
  * Ref-counted with one reference per outstanding input reaction, so it dies
  * with the last of them however they end (delivered, or dropped at shutdown).
  *
- * It is an OFF-GRAPH holder of `result` and `slots` (AGENTS.md section 3):
+ * It is an OFF-GRAPH holder of `result` and `slots` (agent-guides/memory.md):
  * reachable only from reaction records, and reachable from SEVERAL of them at
  * once. That is why the debug ref checker marks it from its own registry
  * rather than from each reaction -- marking per reaction would bump

@@ -276,7 +276,7 @@ retry_for_shadow:
           fp = sp;  // leave the already pushed args on the stack
           // fp is manually repointed per iteration below; restore it
           // unconditionally, including if a default-argument closure error()s
-          // and unwinds out of here (AGENTS.md section 4).
+          // and unwinds out of here (agent-guides/memory.md).
           DEFER { fp = saved_fp; };
 
           // NOTE: this assumes default arguments closure are always generated right after the
@@ -311,7 +311,7 @@ retry_for_shadow:
             assign_svalue_no_free(&sv_funcp, sp);
             pop_stack();
             // Drop sv_funcp's ref on every path, including if the closure
-            // below error()s (AGENTS.md section 4).
+            // below error()s (agent-guides/memory.md).
             DEFER { free_svalue(&sv_funcp, "apply_low: default args closure"); };
 
             DEBUG_CHECK(

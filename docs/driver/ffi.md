@@ -323,7 +323,7 @@ Notes:
   driver does no encoding conversion, so no NUL-terminated string
   copies exist on this path.
 - **Error handling**: every failure path is `error()`, never a crash;
-  the caution in AGENTS.md §4 (error-unwind leaks) means all transient
+  the caution in agent-guides/memory.md (error-unwind leaks) means all transient
   native buffers for a call are arena/`unique_ptr` owned so an
   `error()` mid-marshal leaks nothing.
 - **DEBUGMALLOC**: no dedicated FFI tag or `check_all_blocks` mark hook

@@ -22,7 +22,7 @@ rules and once-bitten lessons.
    in `.github/workflows/release.yml` in sync with any new file.
 4. **Vendor byte-exact from the official npm tarball** (`npm pack`,
    sha256-compare, keep licenses). Never reconstruct vendor code by any
-   lossy channel (root AGENTS.md §14 — observed to fabricate plausible
+   lossy channel (root agent-guides/thirdparty.md — observed to fabricate plausible
    code that passes tests).
 5. **wasm bridge reentrancy** (`wasm/index.html`): the bridge is
    synchronous both ways — never call `fluffos_input` from inside

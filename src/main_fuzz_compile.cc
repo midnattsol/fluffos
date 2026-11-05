@@ -9,7 +9,7 @@
 // lpcshell uses -- in the SAME process, not just one compile per exec.
 //
 // A sequence (not a single compile) matters here for the same reason it
-// mattered for the restore_variable() harness: AGENTS.md section 11 is
+// mattered for the restore_variable() harness: agent-guides/compiler.md is
 // explicit that the compiler keeps per-compile scratch state at module
 // scope -- the scratchpad arena, the macro/predefine tables, expansion_
 // frames/live_expansion_stack/live_guard_counts, the diagnostics stream --

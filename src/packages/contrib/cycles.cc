@@ -525,7 +525,7 @@ void f_break_cycles() {
   // by RAII, not a trailing loop: allocate_array() below can error() (LPC
   // can shrink __MAX_ARRAY_SIZE__ at runtime via set_config(), making a
   // same-size replacement illegal), and an unwind that skipped a manual
-  // release loop would leak every held reference (AGENTS.md section 4).
+  // release loop would leak every held reference (agent-guides/memory.md).
   struct ContainerRelease {
     std::vector<PendingFix>* fixes;
     ~ContainerRelease() {

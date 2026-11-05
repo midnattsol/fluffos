@@ -12,7 +12,7 @@
 # even reading them as UTF-8 and writing back) would corrupt them.
 # testsuite/.gitattributes marks them `binary` for the same reason; if a
 # similar raw-invalid-byte fixture is added later, add it BOTH there and
-# here. See AGENTS.md section 7.
+# here. See agent-guides/testsuite.md.
 #
 # The three EOF-lexerror fixtures (eof_in_string / eof_in_comment /
 # bad_at_block) are deliberately-unterminated sources whose brokenness

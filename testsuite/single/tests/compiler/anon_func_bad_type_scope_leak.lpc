@@ -33,7 +33,7 @@
 // compiler front-end, minimized to 22 bytes.
 //
 // Fix mirrors the established pattern for a soft-skipped push needing its
-// paired pop to skip in step (AGENTS.md section 13 point 13): a new
+// paired pop to skip in step (agent-guides/memory-audit.md item 13): a new
 // func_block_t.opened flag records whether rule_lambda_return_type()
 // actually pushed anything; rule_primary_expr_anon_func() checks it and
 // skips its restore entirely when false, whichever way parsing goes from

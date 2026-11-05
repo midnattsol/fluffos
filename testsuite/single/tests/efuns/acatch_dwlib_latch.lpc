@@ -22,7 +22,7 @@
 // there -- but it is NOT absent from CI: .github/workflows/ci.yml builds
 // -DPACKAGE_DWLIB=ON, so these checks do run. Do not delete this as dead. The general rule it pins applies to every
 // such latch: when restore_context() grows another reset,
-// unwind_to_acatch_marker() needs it too (AGENTS.md section 4).
+// unwind_to_acatch_marker() needs it too (agent-guides/memory.md).
 
 #ifdef __PACKAGE_DWLIB__
 private async void trip_latch() {

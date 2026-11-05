@@ -1810,14 +1810,14 @@ int fill_default_args(program_t* progp, function_t* funcp, int funflags, int num
     pop_stack();
     // Always drop sv_funcp's ref on the way out, including if
     // call_function_pointer() below throws (a default-argument expression
-    // calling error() is ordinary, not exceptional) -- AGENTS.md section 4.
+    // calling error() is ordinary, not exceptional) -- agent-guides/memory.md.
     DEFER { free_svalue(&sv_funcp, "fill_default_args"); };
     // Evaluate the closure into a local BEFORE pushing: push_svalue(x) is
     // the macro `STACK_INC; assign_svalue_no_free(sp, x);`, so pushing
     // call_function_pointer(...)'s result directly would run STACK_INC
     // before its argument is even evaluated. If that call throws, sp is
     // left one slot ahead pointing at an uninitialized svalue_t -- the
-    // "half-initialized VM stack slot" hazard AGENTS.md section 4 warns
+    // "half-initialized VM stack slot" hazard agent-guides/memory.md warns
     // about, and the actual mechanism behind this bug's observed crash
     // (the next pop_n_elems() during unwind frees that garbage slot).
     svalue_t* result = call_function_pointer(sv_funcp.u.fp, 0);

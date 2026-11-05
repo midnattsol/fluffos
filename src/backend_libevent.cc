@@ -137,7 +137,7 @@ void on_loop_yield_event(evutil_socket_t /*fd*/, short /*what*/, void* arg) {
  * does not appear in ChangeLog-2.0), which is why libevent is vendored
  * rather than probed for: a missing symbol here is a link error, not a
  * silent behaviour change.
- * RE-CHECK THIS ON EVERY LIBEVENT UPGRADE (AGENTS.md section 14). */
+ * RE-CHECK THIS ON EVERY LIBEVENT UPGRADE (agent-guides/thirdparty.md). */
 extern "C" void event_active_later_(struct event* ev, int res);
 
 // Schedule a immediate event on main loop.

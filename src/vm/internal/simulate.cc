@@ -2318,7 +2318,7 @@ static void mudlib_error_handler(char* err, int katch) {
   // itself error()s -- e.g. mapping_too_large() when __MAX_MAPPING_SIZE__
   // is configured smaller than this diagnostic mapping needs. That's a
   // second error() firing while already inside error handling for a first
-  // one; per AGENTS.md section 4 this needs the same RAII treatment as any
+  // one; per agent-guides/memory.md this needs the same RAII treatment as any
   // other error()-adjacent allocation.
   std::unique_ptr<mapping_t, void (*)(mapping_t*)> m_owned(allocate_mapping(6), free_mapping);
   mapping_t* m = m_owned.get();

@@ -535,7 +535,7 @@ void f_ffi_prepare() {
   }
 
   // unique_ptr so an error() longjmp (e.g. an invalid type code passed to
-  // code_to_type below) frees it during unwinding -- AGENTS.md section 4.
+  // code_to_type below) frees it during unwinding -- agent-guides/memory.md.
   auto fn = std::make_unique<FfiFunc>();
   fn->addr = addr;
   fn->ret_code = ret_code;
@@ -807,7 +807,7 @@ void f_ffi_callback() {
 
   // unique_ptr with free_callback as the deleter so an error() longjmp
   // (an invalid type code, or a libffi failure) frees the struct AND any
-  // allocated closure during unwinding -- AGENTS.md section 4.
+  // allocated closure during unwinding -- agent-guides/memory.md.
   // free_callback tolerates a null closure/fun.
   std::unique_ptr<FfiCallback, void (*)(FfiCallback*)> cb(new FfiCallback, free_callback);
   cb->closure = nullptr;

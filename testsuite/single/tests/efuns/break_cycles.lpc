@@ -131,7 +131,7 @@ private void run_checks() {
 }
 
 void do_tests() {
-  // unconditional teardown (AGENTS.md section 7): if anything above errors
+  // unconditional teardown (agent-guides/testsuite.md): if anything above errors
   // uncaught mid-test, locally-built cycles unwind into orphans that the
   // harness's post-file check_memory() now hard-fails on -- collect them
   // so one regression stays one [ FAILED ] entry instead of aborting the

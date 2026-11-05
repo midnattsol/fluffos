@@ -236,5 +236,5 @@ For driver developers: `copy()`'s depth-cap error path must stay
 unwind-safe — the deep-copy helpers hold their half-built containers in
 RAII guards (`src/packages/contrib/contrib.cc`) because a cyclic argument
 *always* takes that error path. Any new efun that walks svalues recursively
-needs its own depth cap (audit checklist item — see `AGENTS.md` §13.4) and
+needs its own depth cap (audit checklist item — see `agent-guides/memory-audit.md` item 4) and
 the same unwind discipline.

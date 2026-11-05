@@ -14,7 +14,8 @@
  * would read that as a grant -- across every gate that goes through here:
  * valid_seteuid, valid_bind, valid_shadow, valid_socket, valid_object,
  * valid_link, valid_hide, valid_override. Same rule, and the same reason, as
- * check_valid_path() and the command parser (AGENTS.md section 13.24). */
+ * check_valid_path() and the command parser
+ * (agent-guides/memory-audit.md item 24). */
 int master_approved(struct svalue_t* v, const char* apply_name);
 
 /* for apply_master_ob */

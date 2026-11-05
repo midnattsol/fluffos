@@ -576,7 +576,7 @@ void f_async_read() {
   /* Before any ownership is taken: check_valid_path() pushes args and runs
    * a master apply, either of which can error() -- with a released callback
    * ref or a fresh promise in a raw local, that unwind would leak them
-   * (AGENTS.md section 4). Nothing below this line applies, so the returned
+   * (agent-guides/memory.md). Nothing below this line applies, so the returned
    * string stays valid until add_read() copies it. The path is the FIRST
    * argument -- sp itself is the optional callback when one was passed.
    *
@@ -699,7 +699,7 @@ void f_async_db_exec() {
   // stack slot and crash at the ref++ once a real db handle existed
   // (found by async_db_exec.lpc on the SQLite CI build). unique_ptr owns
   // the struct and a scope guard releases the funptr ref, so an error()
-  // unwind before hand-off leaks neither (AGENTS.md section 4).
+  // unwind before hand-off leaks neither (agent-guides/memory.md).
   std::unique_ptr<function_to_call_t> cb(new function_to_call_t);
   process_efun_callback(2, cb.get(), F_ASYNC_DB_EXEC);
 

@@ -163,8 +163,8 @@ extern const char* compiler_type_names[];
  * overwrites the file-scope current_type global, and the ENCLOSING
  * declarator's rule reads that global only afterwards, so the declared
  * variable silently takes the inner declaration's type -- `e` above becomes
- * a float and `e = 5;` then stores 5.0. (AGENTS.md section 13 item 9, at the
- * compiler level.) Both travel packed in the single LPC_INT the
+ * a float and `e = 5;` then stores 5.0. (agent-guides/memory-audit.md item 9,
+ * at the compiler level.) Both travel packed in the single LPC_INT the
  * *_context_open() rules return, which is error-safe: the value lives on the
  * parser stack and is discarded with it, so a parse error cannot desync a
  * side stack. Context flags are all <= 0x800, so the low half is ample. */

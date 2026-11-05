@@ -17,7 +17,7 @@
 // The compile-time refusal of `async` on apply names reaches none of this:
 // `is_living()` is not in the applies table at all, and an ordinary
 // `mixed id(string s) { return slow(); }` is invisible to a check that keys
-// on the declaration. See AGENTS.md section 13.24.
+// on the declaration. See agent-guides/memory-audit.md item 24.
 
 nosave object fixture;
 

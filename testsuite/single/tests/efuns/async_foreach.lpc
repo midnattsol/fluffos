@@ -14,7 +14,7 @@
 //     block -- a second relocation base, not attempted here;
 //   * a `ref` loop variable owns heap state tied to the C++ frame;
 //   * string-char and buffer-byte lvalues are backed by SHARED VM globals
-//     (AGENTS.md 13.9), one instance at a time by construction, so they can
+//     (agent-guides/memory-audit.md item 9), one instance at a time by construction, so they can
 //     never be per-frame state and are refused permanently.
 
 #include "/include/tests.h"

@@ -327,7 +327,7 @@ mixed valid_read(string file, object ob, string func) {
   // the apply for the suite's "MASTER valid inherit functions are not being
   // called!" check AND deliberately clobbers st_num_arg with a 3-argument
   // efun, which is how a driver that reads the global after an apply (see
-  // AGENTS.md section 13.16) fails the suite instead of passing silently.
+  // agent-guides/memory-audit.md item 16) fails the suite instead of passing silently.
   // Shadowing it outright quietly disabled both.
   return ::valid_read(file, ob, func);
 }

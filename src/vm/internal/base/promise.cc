@@ -111,7 +111,7 @@ bool g_drain_scheduled = false;
 bool g_promises_shut_down = false;
 /* The reaction currently being delivered: popped off the deque, so its refs
  * live only in a C++ local and would be invisible to the ref checker if LPC
- * called check_memory() from a handler (AGENTS.md section 3). */
+ * called check_memory() from a handler (agent-guides/memory.md). */
 QueuedReaction* g_delivering = nullptr;
 /* The coroutine currently being resumed: still registered, but no longer
  * "suspended", so async_info() must not list it. */
@@ -191,10 +191,10 @@ static size_t suspended_coroutine_count() {
 #ifdef DEBUGMALLOC_EXTENSIONS
 /* Result promises whose only reference is a C++ local in a running
  * run_async_function() frame (one per nested synchronous first-run body).
- * Invisible to the Debug ref-checker's object-graph sweep (AGENTS.md
- * section 3), so mark_promise_queue() walks this stack -- LPC inside the
- * body can call check_memory(). The resume path needs no entry here: those
- * refs are owned by the coroutine struct, covered by marking
+ * Invisible to the Debug ref-checker's object-graph sweep
+ * (agent-guides/memory.md), so mark_promise_queue() walks this stack -- LPC
+ * inside the body can call check_memory(). The resume path needs no entry
+ * here: those refs are owned by the coroutine struct, covered by marking
  * g_resuming_coro. */
 std::vector<promise_t*> g_active_body_promises;
 #endif
@@ -262,7 +262,7 @@ LPC_INT g_drain_arms_loop_total = 0;
  * event loop. The registry HOLDS A REFERENCE on each, which is what keeps a
  * yield alive when the awaiting frame is the only other holder -- and what
  * makes them an OFF-GRAPH reference the ref checker cannot see on its own,
- * so mark_promise_queue() marks them (AGENTS.md section 3).
+ * so mark_promise_queue() marks them (agent-guides/memory.md).
  *
  * One event serves all of them: they all resolve at the same instant, so a
  * burst of async_yield() calls in one execution costs one TickEvent, not one
@@ -788,7 +788,7 @@ control_stack_t* find_acatch_marker(control_stack_t* floor_csp) {
  * the command-giver unwind leaked one cgsp entry per caught error and
  * eventually overflowed that fixed array; missing the dwlib latch below
  * left reference_allowed() permanently short-circuited to "allowed" for the
- * rest of the driver's life (AGENTS.md section 4 -- module-global scratch
+ * rest of the driver's life (agent-guides/memory.md -- module-global scratch
  * state must be reset on the error path too). When restore_context() grows
  * another such reset, it belongs here as well. */
 char* unwind_to_acatch_marker(control_stack_t* marker) {
@@ -799,7 +799,8 @@ char* unwind_to_acatch_marker(control_stack_t* marker) {
    * error this unwind exists to deliver, and the acatch region yields 0, which
    * reads as "no error" to `if (e = acatch {...})`. Ownership transfers here:
    * catch_value is reset now, and `caught` is handed to the stack below.
-   * (AGENTS.md section 13 item 3 -- a bare global clobbered by nested LPC.) */
+   * (agent-guides/memory-audit.md item 3 -- a bare global clobbered by nested
+   * LPC.) */
   svalue_t caught = catch_value;
   catch_value = const1;
 #ifdef PACKAGE_DWLIB
@@ -1024,7 +1025,7 @@ void free_coroutine(lpc_coroutine_t* coro, svalue_t* reject_with, bool run_lpc,
      * cause no mudlib author can act on, and a mass destruct produces a
      * burst of them. The eager sibling route,
      * abandon_coroutines_of_object(), already discards them silently and
-     * says why. Same situation, so same answer (AGENTS.md section 15).
+     * says why. Same situation, so same answer (agent-guides/memory-audit.md).
      *
      * Decided here rather than at the four call sites so it also covers a
      * defer handler that destructs the owner partway through the list. */
@@ -1894,8 +1895,9 @@ int promise_request_cancel(promise_t* p) {
    * `max suspended async functions` entries, on a rare user-initiated efun.
    * Deliberately NOT an index keyed by result promise: that would add two
    * more sync points to the park/free pair, which is exactly the
-   * "one sibling path forgot" hazard of AGENTS.md section 13.15 -- and the
-   * owner index already needed a Debug sweep to police the two it has. */
+   * "one sibling path forgot" hazard of agent-guides/memory-audit.md item 15
+   * -- and the owner index already needed a Debug sweep to police the two it
+   * has. */
   lpc_coroutine_t* coro = nullptr;
   for (auto& entry : g_live_coroutines) {
     if (entry.second->result_promise == p && !entry.second->abandoned) {
@@ -2032,7 +2034,7 @@ void coroutine_await_pending(promise_t* awaited) {
    * reach the error handler's log. f_throw()/throw_error() is the precedent.
    *
    * Placed before ANY STACK_INC or allocation below, so the unwind has no
-   * half-initialised slot to trip over (AGENTS.md section 4). */
+   * half-initialised slot to trip over (agent-guides/memory.md). */
   if (g_coroutine_promise->cancelled) {
     g_coroutine_promise->cancelled = false; /* consume-once */
     /* the value travels in catch_value, exactly as f_throw() does it */
@@ -2081,8 +2083,8 @@ void coroutine_await_pending(promise_t* awaited) {
    *     block) has a second relocation base and its own lifetime questions;
    *     refused for now rather than guessed at.
    *   - T_LVALUE_BYTE / _CODEPOINT / _RANGE are backed by SHARED VM globals
-   *     (AGENTS.md section 13.9), one instance at a time by construction, so
-   *     they can never be per-frame state -- these stay refused permanently.
+   *     (agent-guides/memory-audit.md item 9), one instance at a time by
+   *     construction, so they can never be per-frame state -- these stay refused permanently.
    *   - T_REF and T_ERROR_HANDLER own heap state whose unwind is tied to
    *     this C++ frame. */
   for (svalue_t* v = fp; v < sp; v++) {
@@ -2332,7 +2334,7 @@ void abandon_coroutines_of_object(object_t* ob) {
 mapping_t* build_async_scheduler_info() {
   /* allocate_mapping can error() (OOM), and add_mapping_pair can too, so the
    * mapping under construction is guarded exactly like build_async_info's
-   * (AGENTS.md section 4). */
+   * (agent-guides/memory.md). */
   mapping_t* m = allocate_mapping(4);
   bool done = false;
   DEFER {
@@ -2368,8 +2370,9 @@ array_t* build_async_info() {
    * error guard below can free a partially built result. The add_mapping_*
    * calls can error() (mapping-too-large, OOM) and until the return this
    * function is the only owner of the array and the mapping under
-   * construction -- without the guard both leak on the unwind (AGENTS.md
-   * section 4; same shape as mudlib_error_handler's diagnostic mapping). */
+   * construction -- without the guard both leak on the unwind
+   * (agent-guides/memory.md; same shape as mudlib_error_handler's diagnostic
+   * mapping). */
   array_t* v = allocate_array(n);
   mapping_t* m = nullptr;
   bool done = false;
@@ -2464,7 +2467,7 @@ void mark_promise(promise_t* p) {
   /* A raw malloced string held by the struct rather than by an svalue, so
    * nothing else marks it: without this the checker reports it as an
    * unaccounted reference after every file that leaves a rejected promise
-   * around (AGENTS.md section 3). */
+   * around (agent-guides/memory.md). */
   if (p->reject_origin != nullptr) {
     MSTR_EXTRA_REF(p->reject_origin)++;
   }
@@ -2607,8 +2610,8 @@ void promise_cleanup() {
    * This is what the sibling teardown already does and what simulate.cc's
    * shutdown ordering comment demands of it: clear_call_outs() rejects every
    * call_out promise for exactly this reason. A driver-owned promise must be
-   * SETTLED at teardown, never just released (AGENTS.md section 15 -- the
-   * ownership step that only some sibling paths take). */
+   * SETTLED at teardown, never just released (agent-guides/memory-audit.md --
+   * the ownership step that only some sibling paths take). */
   g_yield_event = nullptr;
   for (auto* p : g_pending_yields) {
     svalue_t err;

@@ -2,8 +2,8 @@
 
 #include "packages/core/replace_program.h"
 
-// findstring() arrives via package_api.h -> base/std.h; AGENTS.md section 12
-// forbids including base/internal headers directly.
+// findstring() arrives via package_api.h -> base/std.h;
+// agent-guides/packages.md forbids including base/internal headers directly.
 #include "vm/internal/base/apply_cache.h"  // for apply_cache_lookup()
 
 /*

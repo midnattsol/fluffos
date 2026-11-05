@@ -100,7 +100,7 @@ private void run_checks() {
 }
 
 void do_tests() {
-  // unconditional teardown (AGENTS.md section 7): an uncaught error after
+  // unconditional teardown (agent-guides/testsuite.md): an uncaught error after
   // make_orphans() would otherwise strand the orphans, and the harness's
   // post-file check_memory() now hard-fails on them
   string err = catch(run_checks());

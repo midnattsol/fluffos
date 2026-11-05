@@ -7,9 +7,9 @@
 // each in turn, in the SAME process -- not just one call per exec. This
 // matters: object.cc's restore_svalue()/restore_array()/restore_mapping()/
 // restore_class() share file-scope scratch state (save_svalue_depth,
-// sizes[]) across calls, and the known bug class here (see AGENTS.md
-// section 13 point 4, and restore_variable_class.lpc) is exactly "one
-// restore's error() path leaves that scratch state dirty, and the NEXT
+// sizes[]) across calls, and the known bug class here (see
+// agent-guides/memory-audit.md item 4, and restore_variable_class.lpc) is
+// exactly "one restore's error() path leaves that scratch state dirty, and the NEXT
 // restore in the same process reads the stale value." A harness that forks
 // fresh per input and calls restore_variable() only once could never find
 // that -- it needs a first call to dirty the state and a second to observe

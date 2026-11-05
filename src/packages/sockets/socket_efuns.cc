@@ -2051,7 +2051,8 @@ void mark_sockets() {
     // f_socket_set_option() stores ref-counted strings (TLS SNI hostname /
     // cert / key paths) into options[] via assign_svalue -- these are held
     // off the object graph, so mark them too or check_memory() reports a
-    // bad ref count for a socket carrying a live TLS option (AGENTS.md §3).
+    // bad ref count for a socket carrying a live TLS option
+    // (agent-guides/memory.md).
     for (auto& opt : lpc_socks[i].options) {
       mark_svalue(&opt);
     }

@@ -102,8 +102,8 @@ operator type_check;
  * disassembler are all generated together from these files. It would stop
  * being safe the day anything caches compiled programs across runs.
  *
- * It did push opcodes past 127, which is exactly the AGENTS.md section
- * 13.17 boundary: the disassembler's `*pc` fetch sign-extended them and
+ * It did push opcodes past 127, which is exactly the
+ * agent-guides/memory-audit.md item 17 boundary: the disassembler's `*pc` fetch sign-extended them and
  * silently dropped every high opcode until it was changed to
  * EXTRACT_UCHAR. */
 operator await;

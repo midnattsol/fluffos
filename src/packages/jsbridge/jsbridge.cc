@@ -69,7 +69,7 @@ std::map<std::string, JsExport*> g_js_exports;
 
 // A js_export'ed `async` function returned a promise: the page's callLPC
 // promise settles when this one does. A ref is held on each (marked below
-// for the Debug ref checker, AGENTS.md section 3) until it settles.
+// for the Debug ref checker, agent-guides/memory.md) until it settles.
 struct PendingLpcPromise {
   promise_t* prom;
   int id;

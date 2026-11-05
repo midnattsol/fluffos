@@ -235,7 +235,7 @@ void do_tests() {
   // A comment is ONE space here too (DOUBLE_NEG above pins the same rule
   // for a macro body), so it separates tokens rather than pasting them.
   // Stringized, because that is the only spelling the corpus formatter is
-  // guaranteed not to re-space out from under the pin (see AGENTS.md).
+  // guaranteed not to re-space out from under the pin (see agent-guides/testsuite.md).
   ASSERT_EQ("a b", STR(a/*sep*/b));
 
   // A comment may sit between the macro name and its '(' -- that is still

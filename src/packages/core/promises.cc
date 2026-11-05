@@ -8,7 +8,8 @@
  * in vm/internal/base/promise.cc; these are the LPC-visible entry points.
  *
  * Promise arguments are spec-typed `promise`, so the VM's efun dispatch has
- * already validated the top-level tag before these run (AGENTS.md section 2).
+ * already validated the top-level tag before these run
+ * (agent-guides/packages.md).
  */
 
 #ifdef F_PROMISE_CREATE
@@ -101,7 +102,7 @@ static void promise_then_common(int num_arg, funptr_t* on_fulfilled, funptr_t* o
    * `call_out(0) nest level` refuses exactly this shape for same-tick
    * call_outs (call_out.cc); promises reached it again with no guard. Checked
    * HERE, at the top of the efun before anything is allocated or ref'd, so
-   * the error unwinds with nothing half-built (AGENTS.md section 4). */
+   * the error unwinds with nothing half-built (agent-guides/memory.md). */
   {
     LPC_INT const limit = CONFIG_INT(__RC_MAX_PENDING_DELIVERIES__);
     if (limit > 0 && (LPC_INT)pending_promise_deliveries() >= limit) {
@@ -173,8 +174,8 @@ void f_promise_result() {
 #endif
 
 /* shared body of the four combinators; the array arg is spec-typed, so only
- * its ELEMENTS need checking (AGENTS.md section 2) -- and they need none: a
- * non-promise element is defined to count as already fulfilled with itself,
+ * its ELEMENTS need checking (agent-guides/packages.md) -- and they need
+ * none: a non-promise element is defined to count as already fulfilled with itself,
  * so map() output drops straight in. */
 static void promise_combinator_efun(uint8_t kind) {
   array_t* inputs = sp->u.arr;

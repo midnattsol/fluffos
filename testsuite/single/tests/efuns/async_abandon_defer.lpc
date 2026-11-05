@@ -16,7 +16,7 @@
 //
 // Same situation, so it now gets the same answer as its sibling: the decision
 // is made from whether LPC can still run in that object, not from which route
-// asked (AGENTS.md section 15). The same rule covers a recompiled or
+// asked (agent-guides/memory-audit.md). The same rule covers a recompiled or
 // replaced-program owner, where the funptrs are stale rather than destructed.
 //
 // Be straight about what this file can and cannot prove. The refusal is
@@ -29,7 +29,7 @@
 // the surrounding machinery changes. Instrumenting free_coroutine() confirms
 // this scenario reaches the branch: run_lpc=1 with a destructed owner, which
 // the fix turns into can_run=0. The fix itself rests on matching its sibling
-// route (AGENTS.md section 13's code-symmetry argument, which it explicitly
+// route (agent-guides/memory-audit.md's code-symmetry argument, which it explicitly
 // allows where no observable regression route exists).
 
 nosave object worker;

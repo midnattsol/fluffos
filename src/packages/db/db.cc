@@ -97,7 +97,7 @@ static void free_db_conn(db_t*);
 // use-after-free (close frees the dbconn_t the worker is mid-execute on) or
 // a data race on the result set. Only f_db_exec() took the lock; the others
 // forgot it (the same "teardown path missing the primitive its sibling uses"
-// shape as AGENTS.md section 13's socket_acquire flag gap).
+// shape as agent-guides/memory-audit.md's socket_acquire flag gap).
 //
 // db_mut is lazily created by the first async_db_exec(); a null db_mut means
 // no worker thread was ever spawned, so there is nothing to race and the

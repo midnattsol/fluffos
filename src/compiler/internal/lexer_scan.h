@@ -10,7 +10,7 @@
  *   - the function-like-macro argument collector (lexer_utils.cc) reads
  *     raw characters mid-rule through lpc_lex_getc(), because it must
  *     collect argument TEXT rather than tokens -- '#' hands a parameter
- *     its raw source spelling (AGENTS.md 7);
+ *     its raw source spelling (agent-guides/testsuite.md);
  *   - collect_args(), substitute() and lpc_lex_expand_string()
  *     (lexer_rules_pp.cc) walk text that was captured earlier, during
  *     EXPANSION, when no scanner is running over it at all. They need the

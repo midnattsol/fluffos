@@ -33,7 +33,7 @@ editor-integration surface).
 | `lint.mjs` | `lintLPC(source)` → structural diagnostics (illegal characters, unterminated literals, unbalanced brackets, mismatched conditionals) with 1-based positions. Powers the VS Code extension's as-you-type diagnostics. |
 | `audit.mjs` | `auditIdentifiers(source)` → token-aware naming and dead-code candidates. Separates high-confidence unused locals from private/public/dynamic candidates; it never treats public reachability as proven. |
 | `bin/audit-identifiers.mjs` | Recursive CLI for `audit.mjs`. Accepts files or directories and `--json`; exits 1 when high-confidence findings exist. Combine its report with compiler warnings from `lpcc` before editing. |
-| `../../testsuite/format.sh` | Auto-formats the whole testsuite corpus (`testsuite/**/*.lpc` and `*.c`) in place, or verifies it with `--check` (exit 1 if anything is unformatted -- CI-friendly). Dependency-free (node only, no `npm install`). Owns the corpus EXCLUSION list: the two deliberately-malformed UTF-8 compiler fixtures are raw byte fixtures that must never be read/written as text (see AGENTS.md §7). Lives next to the corpus it formats; drives `bin/format-corpus.mjs` here, which refuses to write any file whose formatted output isn't token-sequence-equivalent to the input, literal-content byte-identical, and idempotent. |
+| `../../testsuite/format.sh` | Auto-formats the whole testsuite corpus (`testsuite/**/*.lpc` and `*.c`) in place, or verifies it with `--check` (exit 1 if anything is unformatted -- CI-friendly). Dependency-free (node only, no `npm install`). Owns the corpus EXCLUSION list: the two deliberately-malformed UTF-8 compiler fixtures are raw byte fixtures that must never be read/written as text (see agent-guides/testsuite.md). Lives next to the corpus it formats; drives `bin/format-corpus.mjs` here, which refuses to write any file whose formatted output isn't token-sequence-equivalent to the input, literal-content byte-identical, and idempotent. |
 | `bin/format-corpus.mjs` | The engine behind `testsuite/format.sh`: file paths on stdin, `--check` for dry-run; every write is gated on token-sequence equivalence, literal-content byte-identity, and idempotency; any violation exits nonzero. |
 | `package.json` | Metadata only (no dependencies): `npm test` runs test.mjs; `npm run format`/`check` forward to `testsuite/format.sh`. |
 | `test.mjs` | `node tools/lpc-syntax/test.mjs` — tokenizer/highlighter/formatter/linter/tmLanguage/Prism-plugin assertions (dependency-free). |
@@ -129,7 +129,7 @@ testsuite/format.sh --check   # exit 1 if anything is unformatted (CI)
 
 Dependency-free (node only). Skips the two malformed-UTF8 fixtures
 (raw byte fixtures -- see the exclusion note in the script and
-AGENTS.md §7) and refuses to write any file whose formatted output
+agent-guides/testsuite.md) and refuses to write any file whose formatted output
 isn't token-sequence-equivalent and idempotent. After reformatting,
 still run the real driver testsuite (see "Validating a formatter
 change" below) before committing.
@@ -168,7 +168,7 @@ cmake --build build --target driver -j$(nproc)
 cd testsuite && ../build/src/driver etc/config.test -ftest
 ```
 
-A clean run prints `Checks succeeded.` and exits 0 (see AGENTS.md §7 for
+A clean run prints `Checks succeeded.` and exits 0 (see agent-guides/testsuite.md for
 the pass/fail signal and randomized-order flakiness notes — run it 2–3×
 after a tokenizer/format.mjs change touching comment/directive/macro-
 adjacent handling). This doesn't require `flex` (the pinned, committed

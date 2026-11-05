@@ -295,7 +295,7 @@ class EGCSmartIterator : public EGCIterator {
 // See MSTR_ASCII_* in stralloc.h.
 //
 // Takes primitives rather than an svalue_t deliberately: base/ must not
-// depend on VM types (see AGENTS.md 12).
+// depend on VM types (see agent-guides/packages.md).
 bool u8_string_is_ascii_cached(const char* str, int32_t len, bool counted);
 
 // Check string s is valid utf8
