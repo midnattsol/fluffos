@@ -166,7 +166,44 @@ static void SQLite3_cleanup(dbconn_t*);
 static char* SQLite3_errormsg(dbconn_t*);
 
 namespace {
-using SqliteStatement = std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)>;
+// Statements live in a per-connection cache until the connection closes, so
+// repeating a query skips the parser. All of a statement's use happens inside
+// one efun under the async lock, and no LPC runs meanwhile, so a statement is
+// never in use twice; this hands it back ready for the next call, also when an
+// error unwinds.
+struct SqliteStatement {
+  sqlite3_stmt* raw;
+  explicit SqliteStatement(sqlite3_stmt* statement) : raw(statement) {}
+  SqliteStatement(const SqliteStatement&) = delete;
+  SqliteStatement& operator=(const SqliteStatement&) = delete;
+  ~SqliteStatement() {
+    sqlite3_reset(raw);
+    sqlite3_clear_bindings(raw);
+  }
+  [[nodiscard]] sqlite3_stmt* get() const { return raw; }
+};
+using SqliteStatementCache = std::unordered_map<std::string, sqlite3_stmt*>;
+constexpr size_t max_cached_sqlite_statements = 64;
+std::unordered_map<sqlite3*, SqliteStatementCache> sqlite_statement_caches;
+
+void clear_sqlite_statement_cache(SqliteStatementCache& cache) {
+  for (auto& entry : cache) sqlite3_finalize(entry.second);
+  cache.clear();
+}
+
+// A query that never returns must not freeze the driver. On the main thread the
+// eval timer already says when time is up, and the interpreter raises "Too long
+// evaluation" at its next instruction. An async worker runs outside that budget,
+// so it gets the same length of time as a deadline of its own.
+thread_local bool sqlite_on_worker = false;
+thread_local std::chrono::steady_clock::time_point sqlite_worker_deadline;
+constexpr int sqlite_progress_interval = 1000;  // VM instructions between checks
+
+int sqlite_progress(void*) {
+  if (sqlite_on_worker) return std::chrono::steady_clock::now() >= sqlite_worker_deadline;
+  return outoftime != 0;
+}
+
 using OwnedArray = std::unique_ptr<array_t, decltype(&free_array)>;
 
 struct OwnedDbValue {
@@ -176,6 +213,14 @@ struct OwnedDbValue {
 
 [[noreturn]] void sqlite_error(const char* code, const char* operation, int handle,
                                sqlite3* connection, const char* message = nullptr) {
+  // sqlite_progress() stopped the statement because the eval budget ran out.
+  // Report that, exactly as the interpreter would at its next instruction.
+  if (connection && !sqlite_on_worker && outoftime &&
+      sqlite3_errcode(connection) == SQLITE_INTERRUPT) {
+    set_eval(max_eval_cost);
+    max_eval_error = 1;
+    error("Too long evaluation. Execution aborted.\n");
+  }
   OwnedDbValue context;
   context.value.u.map = allocate_mapping(5);
   context.value.type = T_MAPPING;
@@ -224,17 +269,24 @@ db_t* sqlite_connection(int handle, const char* operation) {
   return db;
 }
 
-SqliteStatement sqlite_prepare_one(sqlite3* connection, int handle, const char* operation,
-                                   const svalue_t* sql) {
+sqlite3_stmt* sqlite_prepare_one(sqlite3* connection, int handle, const char* operation,
+                                 const svalue_t* sql) {
   const size_t length = SVALUE_STRLEN(sql);
   if (memchr(sql->u.string, '\0', length))
     sqlite_error("db.invalid_statement", operation, handle, connection,
                  "SQLite statement contains an embedded NUL byte");
 
+  auto& cache = sqlite_statement_caches[connection];
+  std::string key(sql->u.string, length);
+  const auto cached = cache.find(key);
+  if (cached != cache.end()) return cached->second;
+
+  using OwnedStatement = std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)>;
   sqlite3_stmt* raw = nullptr;
   const char* tail = nullptr;
-  int status = sqlite3_prepare_v3(connection, sql->u.string, static_cast<int>(length), 0, &raw, &tail);
-  SqliteStatement statement(raw, sqlite3_finalize);
+  int status = sqlite3_prepare_v3(connection, sql->u.string, static_cast<int>(length),
+                                  SQLITE_PREPARE_PERSISTENT, &raw, &tail);
+  OwnedStatement statement(raw, sqlite3_finalize);
   if (status != SQLITE_OK) sqlite_error("db.sqlite", operation, handle, connection);
   if (!statement)
     sqlite_error("db.invalid_statement", operation, handle, connection,
@@ -245,7 +297,7 @@ SqliteStatement sqlite_prepare_one(sqlite3* connection, int handle, const char* 
     sqlite3_stmt* extra_raw = nullptr;
     const char* next = nullptr;
     status = sqlite3_prepare_v3(connection, tail, static_cast<int>(end - tail), 0, &extra_raw, &next);
-    SqliteStatement extra(extra_raw, sqlite3_finalize);
+    OwnedStatement extra(extra_raw, sqlite3_finalize);
     if (status != SQLITE_OK) sqlite_error("db.sqlite", operation, handle, connection);
     if (extra)
       sqlite_error("db.invalid_statement", operation, handle, connection,
@@ -253,7 +305,9 @@ SqliteStatement sqlite_prepare_one(sqlite3* connection, int handle, const char* 
     if (next <= tail) break;
     tail = next;
   }
-  return statement;
+  if (cache.size() >= max_cached_sqlite_statements) clear_sqlite_statement_cache(cache);
+  cache.emplace(std::move(key), statement.get());
+  return statement.release();
 }
 
 void sqlite_bind(sqlite3* connection, sqlite3_stmt* statement, int handle, const char* operation,
@@ -401,7 +455,8 @@ svalue_t* valid_database(const char* action, array_t* info) {
 
   ret = apply_master_ob(APPLY_VALID_DATABASE, 3);
   if (ret && (ret == (svalue_t*)-1 ||
-              (ret->type == T_STRING || (ret->type == T_NUMBER && ret->u.number)))) {
+              (ret->type == T_STRING ||
+               ((ret->type == T_NUMBER || ret->type == T_BOOLEAN) && ret->u.number)))) {
     return ret;
   }
 
@@ -774,7 +829,7 @@ void f_sqlite_execute() {
   db_t* db = sqlite_connection(handle, "execute");
   SQLite3_cleanup(&db->c);
   sqlite3* connection = db->c.SQLite3.handle;
-  auto statement = sqlite_prepare_one(connection, handle, "execute", sql);
+  SqliteStatement statement(sqlite_prepare_one(connection, handle, "execute", sql));
   if (sqlite3_column_count(statement.get()) != 0 || sqlite3_stmt_readonly(statement.get()))
     sqlite_error("db.invalid_statement", "execute", handle, connection,
                  "sqlite_execute() requires a write statement without result columns");
@@ -815,7 +870,7 @@ void f_sqlite_query() {
   db_t* db = sqlite_connection(handle, "query");
   SQLite3_cleanup(&db->c);
   sqlite3* connection = db->c.SQLite3.handle;
-  auto statement = sqlite_prepare_one(connection, handle, "query", sql);
+  SqliteStatement statement(sqlite_prepare_one(connection, handle, "query", sql));
   const int columns = sqlite3_column_count(statement.get());
   if (!sqlite3_stmt_readonly(statement.get()) || columns < 1)
     sqlite_error("db.invalid_statement", "query", handle, connection,
@@ -833,8 +888,13 @@ void f_sqlite_query() {
     if (status != SQLITE_ROW) sqlite_error("db.sqlite", "query", handle, connection);
     if (row_count == max_rows)
       sqlite_limit_error(handle, "rows", max_rows, row_count + 1);
-    OwnedArray row(allocate_empty_array(columns), free_array);
-    for (int column = 0; column < columns; ++column)
+    // Ask again: a schema change since a cached statement was prepared makes
+    // step() re-prepare it, which can change `SELECT *`'s column count.
+    const int row_columns = sqlite3_column_count(statement.get());
+    if (row_columns > max_array || (max_rows && row_columns > max_array / max_rows))
+      sqlite_limit_error(handle, "result_cells", max_array, max_rows * row_columns);
+    OwnedArray row(allocate_empty_array(row_columns), free_array);
+    for (int column = 0; column < row_columns; ++column)
       sqlite_set_column(&row->item[column], statement.get(), column, handle, max_bytes, &used_bytes);
     result->item[row_count].type = T_ARRAY;
     result->item[row_count].subtype = 0;
@@ -1002,6 +1062,14 @@ uint64_t reserve_db_async(int handle) {
 #endif
   ++db->pending_async;
   return db->generation;
+}
+
+void db_async_worker_begin() {
+#ifdef USE_SQLITE3
+  sqlite_on_worker = true;
+  sqlite_worker_deadline = std::chrono::steady_clock::now() +
+                           std::chrono::microseconds(CONFIG_INT(__MAX_EVAL_COST__));
+#endif
 }
 
 void complete_db_async(int handle, uint64_t generation) {
@@ -1354,6 +1422,7 @@ static int SQLite3_connect(dbconn_t* c, const char* host, const char* database,
     return 0;
   }
 
+  sqlite3_progress_handler(c->SQLite3.handle, sqlite_progress_interval, sqlite_progress, nullptr);
   c->SQLite3.results = 0;
   c->SQLite3.nrows = 0;
   c->SQLite3.last_row = 0;
@@ -1365,6 +1434,12 @@ static int SQLite3_close(dbconn_t* c) {
   if (c->SQLite3.results) {
     sqlite3_finalize(c->SQLite3.results);
     c->SQLite3.results = 0;
+  }
+
+  const auto cache = sqlite_statement_caches.find(c->SQLite3.handle);
+  if (cache != sqlite_statement_caches.end()) {
+    clear_sqlite_statement_cache(cache->second);
+    sqlite_statement_caches.erase(cache);
   }
 
   sqlite3_close(c->SQLite3.handle);

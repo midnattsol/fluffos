@@ -96,6 +96,29 @@ private void run_checks() {
   sqlite_rollback(conn);
 
   ASSERT_EQ(({ ({ 1 }) }), sqlite_query(conn, "SELECT 1", ({}), 1, 16));
+
+  // Repeating a statement reuses it: no bindings or position carried over,
+  // not after an error either, and a schema change is picked up.
+  ASSERT_EQ(({ ({ 7 }) }), sqlite_query(conn, "SELECT ?", ({ 7 }), 1, 16));
+  ASSERT_EQ(({ ({ 8 }) }), sqlite_query(conn, "SELECT ?", ({ 8 }), 1, 16));
+  failure = catch(sqlite_query(conn, "SELECT ?", ({}), 1, 16));
+  assert_error_code(failure, "db.invalid_parameter");
+  ASSERT_EQ(({ ({ 9 }) }), sqlite_query(conn, "SELECT ?", ({ 9 }), 1, 16));
+  failure = catch(sqlite_query(conn,
+    "WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x + 1 FROM n WHERE x < 3) "
+    "SELECT x FROM n", ({}), 2, 32));
+  assert_error_code(failure, "db.result_limit");
+  sqlite_begin(conn);
+  sqlite_commit(conn);
+  sqlite_execute(conn, "CREATE TABLE evolving (a)", ({}));
+  sqlite_execute(conn, "INSERT INTO evolving VALUES (?)", ({ 1 }));
+  ASSERT_EQ(({ ({ 1 }) }), sqlite_query(conn, "SELECT * FROM evolving", ({}), 1, 16));
+  sqlite_execute(conn, "ALTER TABLE evolving ADD COLUMN b DEFAULT 2", ({}));
+  ASSERT_EQ(({ ({ 1, 2 }) }), sqlite_query(conn, "SELECT * FROM evolving", ({}), 1, 16));
+  for (int i = 0; i < 100; i++) {
+    ASSERT_EQ(({ ({ i }) }), sqlite_query(conn, sprintf("SELECT %d", i), ({}), 1, 16));
+  }
+  ASSERT_EQ(({ ({ 1, 2 }) }), sqlite_query(conn, "SELECT * FROM evolving", ({}), 1, 16));
 }
 
 void do_tests() {

@@ -1,0 +1,41 @@
+#include <tests.h>
+
+#if defined(__PACKAGE_DB__) && defined(__USE_SQLITE3__)
+private int conn;
+private int previous_limit;
+private string database = "/sqlite_query_timeout.sqlite";
+
+void restore_limit() { set_eval_limit(previous_limit); }
+
+void endless_query() {
+  conn = db_connect("", database, "", __USE_SQLITE3__);
+  previous_limit = set_eval_limit(1);
+  // The limit is global: put it back during the unwind, before the rest of this
+  // tick's deferred work from other tests runs under it.
+  defer((: restore_limit :));
+  set_eval_limit(200000);
+  set_eval_limit(0);
+  // The eval limit is the only thing that can end this.
+  sqlite_query(conn, "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n) "
+    "SELECT count(*) FROM n", ({}), 1, 16);
+  ASSERT(0);
+}
+
+void after_timeout() {
+  // The connection is still usable: the interrupted statement was reset.
+  ASSERT_EQ(({ ({ 1 }) }), sqlite_query(conn, "SELECT 1", ({}), 1, 16));
+  db_close(conn);
+  rm(database);
+  RELEASE_LATCH("sqlite query timeout");
+}
+
+void do_tests() {
+  rm(database);
+  "/single/master"->expect_deferred_error("Too long evaluation");
+  EXPECT_LATCH("sqlite query timeout");
+  call_out("endless_query", 0);
+  call_out("after_timeout", 2);
+}
+#else
+void do_tests() { write("SQLite is not enabled, skipping query timeout test...\n"); }
+#endif

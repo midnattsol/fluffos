@@ -75,6 +75,8 @@ svalue_t* valid_database(const char* action, array_t* info);
 db_t* find_db_conn(int handle);
 uint64_t reserve_db_async(int handle);
 void complete_db_async(int handle, uint64_t generation);
+/* Call on a worker thread before each query: bounds it by the maximum eval cost. */
+void db_async_worker_begin();
 
 void mark_db_conn();
 #endif /* PACKAGES_DB_H */

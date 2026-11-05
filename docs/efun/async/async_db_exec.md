@@ -14,7 +14,8 @@ title: async / async_db_exec
 ### DESCRIPTION
 
     This function will execute the passed sql statement for the given data‐
-    base handle.
+    base handle. On SQLite the statement is interrupted once it has run for
+    the configured maximum evaluation cost.
 
     Returns the database handle to the callback function provided.
 

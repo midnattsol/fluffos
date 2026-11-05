@@ -28,6 +28,11 @@ not included.
 
 Parameter rules are the same as for `sqlite_execute()`.
 
+A statement runs under the caller's evaluation limit: a query that outlives it
+is interrupted and the driver raises the usual uncatchable "Too long evaluation"
+error. Prepared statements are cached per connection and reused for identical
+SQL text, so build queries with `?` parameters rather than formatting values in.
+
 ### EXAMPLE
 
 ```c

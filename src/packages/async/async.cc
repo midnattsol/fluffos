@@ -250,6 +250,7 @@ void* dbexecthread(struct Request* req) {
                                  [=] { return json{req->data}; });
 
   pthread_mutex_lock(db_mut);
+  db_async_worker_begin();
   // see add_db_exec
   db_t* db = find_db_conn(req->handle);
   const bool current_generation = db && db->generation == req->db_generation;
