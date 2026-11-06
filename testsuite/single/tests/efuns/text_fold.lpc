@@ -1,0 +1,22 @@
+void do_tests() {
+  ASSERT_EQ("", text_fold(""));
+  ASSERT_EQ("plain text", text_fold("Plain TEXT"));
+  ASSERT_EQ("lena", text_fold("leña"));
+  ASSERT_EQ("lena", text_fold("LEÑA"));
+  ASSERT_EQ("lena", text_fold("lena"));
+  ASSERT_EQ("lena", text_fold("leña"));
+  ASSERT_EQ("herreria", text_fold("Herrería"));
+  ASSERT_EQ("cafe", text_fold("CAFÉ"));
+  ASSERT_EQ("þor", text_fold("ÞÓR"));
+  ASSERT_EQ("þor", text_fold("þór"));
+  ASSERT_EQ("ωmega", text_fold("ΩMEGA"));
+  ASSERT_EQ("strasse", text_fold("Straße"));
+  ASSERT_EQ("狼", text_fold("狼"));
+  // Letters of their own stay; what they spell in ASCII is a game's decision.
+  ASSERT_EQ("snærdal", text_fold("SNÆRDAL"));
+  ASSERT_EQ("jarnviðr", text_fold("Járnviðr"));
+  // The argument is untouched.
+  string original = "LEÑA";
+  text_fold(original);
+  ASSERT_EQ("LEÑA", original);
+}

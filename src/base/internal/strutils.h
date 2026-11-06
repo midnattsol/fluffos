@@ -312,6 +312,10 @@ size_t u8_width(const char* src, int len);
 void u8_truncate_below_width(const char* src, size_t len, size_t max_width, bool break_for_line,
                              bool always_break_before_newline, size_t* out_len, size_t* out_width);
 std::string u8_sanitize(std::string_view src);
+// Lower case by Unicode rules.
+std::string u8_lower(std::string_view src);
+// The form two texts are compared in: no accents or other combining marks, case folded, composed.
+std::string u8_fold(std::string_view src);
 // Length (0-3) of the incomplete-but-valid UTF-8 sequence prefix at the end
 // of buf.  Streaming input should hold those bytes back until the rest of
 // the character arrives, instead of sanitizing them into U+FFFD.

@@ -6,6 +6,10 @@
 #include <memory>
 #include <cstring>
 #include <unordered_set>
+#include <unicode/normalizer2.h>
+#include <unicode/stringpiece.h>
+#include <unicode/uchar.h>
+#include <unicode/unistr.h>
 
 #include "thirdparty/utf8_decoder_dfa/decoder.h"
 #include "thirdparty/widecharwidth/widechar_width.h"
@@ -44,6 +48,44 @@ bool u8_validate(const uint8_t* s, size_t len) {
 }
 
 std::string u8_sanitize(std::string_view src) { return utf8::replace_invalid(src); }
+
+std::string u8_lower(std::string_view src) {
+  std::string result;
+  icu::UnicodeString::fromUTF8(icu::StringPiece(src.data(), src.size()))
+      .toLower(icu::Locale::getRoot())
+      .toUTF8String(result);
+  return result;
+}
+
+std::string u8_fold(std::string_view src) {
+  UErrorCode status = U_ZERO_ERROR;
+  auto const* decompose = icu::Normalizer2::getNFDInstance(status);
+  auto const* compose = icu::Normalizer2::getNFCInstance(status);
+  if (U_FAILURE(status)) {
+    return std::string(src);
+  }
+  auto const decomposed = decompose->normalize(
+      icu::UnicodeString::fromUTF8(icu::StringPiece(src.data(), src.size())), status);
+  if (U_FAILURE(status)) {
+    return std::string(src);
+  }
+  icu::UnicodeString stripped;
+  for (int32_t index = 0; index < decomposed.length();) {
+    UChar32 const point = decomposed.char32At(index);
+    index += U16_LENGTH(point);
+    if (u_charType(point) != U_NON_SPACING_MARK) {
+      stripped.append(point);
+    }
+  }
+  stripped.foldCase();
+  auto const composed = compose->normalize(stripped, status);
+  if (U_FAILURE(status)) {
+    return std::string(src);
+  }
+  std::string result;
+  composed.toUTF8String(result);
+  return result;
+}
 
 size_t u8_incomplete_tail(std::string_view buf) {
   const size_t n = buf.size();

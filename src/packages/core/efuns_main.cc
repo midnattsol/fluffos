@@ -893,6 +893,16 @@ void f_values() {
 void f_lower_case() {
   char* str;
 
+  // Letters outside ASCII lower through ICU; the loop below stays the fast path for plain text.
+  for (str = const_cast<char*>(sp->u.string); *str; str++) {
+    if (static_cast<unsigned char>(*str) >= 0x80) {
+      auto const lowered = u8_lower(sp->u.string);
+      pop_stack();
+      copy_and_push_string(lowered.c_str());
+      return;
+    }
+  }
+
   str = const_cast<char*>(sp->u.string);
   /* find first upper case letter, if any */
   for (; *str; str++) {
@@ -909,6 +919,14 @@ void f_lower_case() {
       return;
     }
   }
+}
+#endif
+
+#ifdef F_TEXT_FOLD
+void f_text_fold() {
+  auto const folded = u8_fold(sp->u.string);
+  pop_stack();
+  copy_and_push_string(folded.c_str());
 }
 #endif
 

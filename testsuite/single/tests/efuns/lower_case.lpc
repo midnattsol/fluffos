@@ -16,4 +16,13 @@ void do_tests() {
   str = STR3;
   ASSERT(lower_case(str) == STR);
   ASSERT(str == STR3);
+
+  // Letters outside ASCII follow Unicode, and the argument stays untouched.
+  str = "LEÑA";
+  ASSERT_EQ("leña", lower_case(str));
+  ASSERT_EQ("LEÑA", str);
+  ASSERT_EQ("þór", lower_case("ÞÓR"));
+  ASSERT_EQ("ωmega", lower_case("ΩMEGA"));
+  ASSERT_EQ("狼", lower_case("狼"));
+  ASSERT_EQ("snærdal 狼", lower_case("SNÆRDAL 狼"));
 }

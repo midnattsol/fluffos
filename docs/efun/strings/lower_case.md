@@ -16,7 +16,9 @@ title: strings / lower_case
     Return the lowercase version of a given string (original string remains
     unchanged).
 
+    Letters outside ASCII follow Unicode rules: "ÑÞΩ" gives "ñþω".
+
 ### SEE ALSO
 
-    capitalize(3)
+    capitalize(3), text_fold(3)
 
