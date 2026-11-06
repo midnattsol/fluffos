@@ -2422,6 +2422,8 @@ void eval_instruction(char* p) {
           lval = lv.target();
           switch (lval->type) {
             case T_NUMBER:
+              // A missing mapping key or unset local reads as undefined; a counted value is not.
+              lval->subtype = 0;
               lval->u.number++;
               break;
             case T_REAL:
@@ -3815,6 +3817,8 @@ void eval_instruction(char* p) {
           lval = lv.target();
           switch (lval->type) {
             case T_NUMBER:
+              // A missing mapping key or unset local reads as undefined; a counted value is not.
+              lval->subtype = 0;
               sp->type = T_NUMBER;
               sp->subtype = 0;
               sp->u.number = --(lval->u.number);
@@ -3854,6 +3858,8 @@ void eval_instruction(char* p) {
           lval = lv.target();
           switch (lval->type) {
             case T_NUMBER:
+              // A missing mapping key or unset local reads as undefined; a counted value is not.
+              lval->subtype = 0;
               lval->u.number--;
               break;
             case T_REAL:
@@ -3958,6 +3964,8 @@ void eval_instruction(char* p) {
           lval = lv.target();
           switch (lval->type) {
             case T_NUMBER:
+              // A missing mapping key or unset local reads as undefined; a counted value is not.
+              lval->subtype = 0;
               sp->type = T_NUMBER;
               sp->subtype = 0;
               sp->u.number = ++lval->u.number;
@@ -4422,6 +4430,8 @@ void eval_instruction(char* p) {
           lval = lv.target();
           switch (lval->type) {
             case T_NUMBER:
+              // A missing mapping key or unset local reads as undefined; a counted value is not.
+              lval->subtype = 0;
               sp->type = T_NUMBER;
               sp->u.number = lval->u.number--;
               sp->subtype = 0;
@@ -4461,6 +4471,8 @@ void eval_instruction(char* p) {
           lval = lv.target();
           switch (lval->type) {
             case T_NUMBER:
+              // A missing mapping key or unset local reads as undefined; a counted value is not.
+              lval->subtype = 0;
               sp->type = T_NUMBER;
               sp->u.number = lval->u.number++;
               sp->subtype = 0;
