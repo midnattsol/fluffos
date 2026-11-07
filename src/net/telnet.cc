@@ -29,6 +29,7 @@ static const telnet_telopt_t my_telopts[] = {{TELNET_TELOPT_TM, TELNET_WILL, TEL
                                              {TELNET_TELOPT_MSP, TELNET_WILL, TELNET_DO},
                                              {TELNET_TELOPT_BINARY, TELNET_WILL, TELNET_DO},
                                              {TELNET_TELOPT_MSDP, TELNET_WILL, TELNET_DO},
+                                             {TELNET_TELOPT_EOR, TELNET_WILL, TELNET_DO},
                                              {-1, 0, 0}};
 
 // Websocket connections: same table, but refuse MCCP (COMPRESS2). The
@@ -50,6 +51,7 @@ static const telnet_telopt_t my_telopts_ws[] = {{TELNET_TELOPT_TM, TELNET_WILL, 
                                                 {TELNET_TELOPT_MSP, TELNET_WILL, TELNET_DO},
                                                 {TELNET_TELOPT_BINARY, TELNET_WILL, TELNET_DO},
                                                 {TELNET_TELOPT_MSDP, TELNET_WILL, TELNET_DO},
+                                                {TELNET_TELOPT_EOR, TELNET_WILL, TELNET_DO},
                                                 {-1, 0, 0}};
 
 // Telnet event handler
@@ -213,6 +215,10 @@ static inline void on_telnet_do(unsigned char cmd, interactive_t* ip) {
     case TELNET_TELOPT_TM:
       telnet_negotiate(ip->telnet, TELNET_WILL, TELNET_TELOPT_TM);
       break;
+    case TELNET_TELOPT_EOR:
+      // We offered WILL EOR; libtelnet has already settled the option, nothing to answer.
+      ip->iflags |= USING_EOR;
+      break;
     case TELNET_TELOPT_ECHO:
       /* do nothing, but don't send a wont response */
       break;
@@ -309,6 +315,9 @@ static inline void on_telnet_dont(unsigned char cmd, interactive_t* ip) {
         ip->iflags &= ~SUPPRESS_GA;
         telnet_negotiate(ip->telnet, TELNET_WONT, TELNET_TELOPT_SGA);
       }
+      break;
+    case TELNET_TELOPT_EOR:
+      ip->iflags &= ~USING_EOR;
       break;
     case TELNET_TELOPT_MSP:
       on_telnet_dont_msp(ip);
@@ -611,6 +620,9 @@ void send_initial_telnet_negotiations(struct interactive_t* user) {
 
   telnet_negotiate(user->telnet, TELNET_WILL, TELNET_TELOPT_CHARSET);
 
+  // End-of-record marks the end of a prompt (RFC 885); the client answers DO.
+  telnet_negotiate(user->telnet, TELNET_WILL, TELNET_TELOPT_EOR);
+
   if (CONFIG_INT(__RC_ENABLE_MSP__)) {
     telnet_negotiate(user->telnet, TELNET_WILL, TELNET_TELOPT_MSP);
   }
@@ -670,6 +682,12 @@ void telnet_request_ttype(struct telnet_t* telnet) { telnet_ttype_send(telnet); 
 void telnet_send_nop(struct telnet_t* telnet) {
   if (telnet) {
     telnet_iac(telnet, TELNET_NOP);
+  }
+}
+
+void telnet_send_eor(struct telnet_t* telnet) {
+  if (telnet) {
+    telnet_iac(telnet, TELNET_EOR);
   }
 }
 

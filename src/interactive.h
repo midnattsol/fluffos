@@ -35,6 +35,8 @@
 #define USING_COMPRESS 0x40000     /* we've negotiated compress */
 #define USING_MSP 0x80000          /* we've negotiated msp */
 #define USING_MSDP 0x100000        /* we've negotiated msdp */
+#define USING_EOR 0x200000         /* we've negotiated telnet end-of-record */
+#define EOR_SENT 0x400000          /* the mudlib already ended the prompt of this command */
 
 // from ICU
 struct UConverter;

@@ -671,6 +671,7 @@ int process_user_command(interactive_t* ip) {
   current_interactive = command_giver; /* this is yuck phooey, sigh */
   if (ip) {
     clear_notify(ip->ob);
+    ip->iflags &= ~EOR_SENT;
   }
 
   // FIXME: move this to somewhere else
@@ -736,7 +737,12 @@ exit:
     if (ip->input_to == nullptr) {
       print_prompt(ip);
     }
-    if (ip->telnet && (ip->iflags & USING_TELNET) && !(ip->iflags & SUPPRESS_GA)) {
+    if (ip->telnet && (ip->iflags & USING_EOR)) {
+      // With EOR the prompt is ended by IAC EOR instead of GA; the mudlib may have done so already.
+      if (!(ip->iflags & EOR_SENT)) {
+        telnet_send_eor(ip->telnet);
+      }
+    } else if (ip->telnet && (ip->iflags & USING_TELNET) && !(ip->iflags & SUPPRESS_GA)) {
       telnet_send_ga(ip->telnet);
     }
     // FIXME: this doesn't belong here, should be moved to event.cc

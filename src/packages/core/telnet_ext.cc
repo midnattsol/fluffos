@@ -77,6 +77,37 @@ void f_telnet_ga() {
 }
 #endif
 
+#ifdef F_TELNET_PROMPT_END
+// Ends the prompt just written with IAC EOR when the client negotiated it; otherwise sends nothing
+// (the driver's own GA after a typed line stays as it was).
+void f_telnet_prompt_end() {
+  auto* ip = current_object->interactive;
+  if (ip && ip->telnet) {
+    if (ip->iflags & USING_EOR) {
+      telnet_send_eor(ip->telnet);
+      ip->iflags |= EOR_SENT;
+      flush_message(ip);
+    }
+  } else if (!ip) {
+    debug_message(
+        "Warning: wrong usage. telnet_prompt_end() should only be called by a user object.\n");
+  }
+}
+#endif
+
+#ifdef F_HAS_EOR
+void f_has_eor() {
+  int i = 0;
+
+  if (sp->u.ob->interactive) {
+    i = sp->u.ob->interactive->iflags & USING_EOR;
+    i = !!i;  // force 1 or 0
+  }
+  free_object(&sp->u.ob, "f_has_eor");
+  put_number(i);
+}
+#endif
+
 /* MXP */
 #ifdef F_HAS_MXP
 void f_has_mxp() {

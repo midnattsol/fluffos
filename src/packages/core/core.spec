@@ -371,6 +371,8 @@ void start_request_term_type();
 void request_term_size(void | int);
 void telnet_nop();
 void telnet_ga();
+void telnet_prompt_end();
+int has_eor(object default:F__THIS_OBJECT);
 void telnet_msp_oob(string);
 
 /* shutdown is at the end because it is only called once per boot cycle :) */
